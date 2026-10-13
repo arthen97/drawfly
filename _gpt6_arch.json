@@ -1,0 +1,39 @@
+{
+  "architecture": "A 60 Hz simulator integrates continuous pen motion on a bounded paper plane, with circle, heart, or square reference curves and persistent vector strokes. GPT supplies held controls at 5 Hz; forward_step and turn_deg cap travel and rotation per decision, without grid snapping or teleportation.",
+  "action_space": [
+    "move(throttle: 0..1, steering: -1..1, pen_down: boolean)",
+    "finish"
+  ],
+  "observation_fields": [
+    "target_shape and reference_curve",
+    "pose: x, y, heading_deg",
+    "pen_down and current_controls",
+    "stroke_polylines",
+    "nearest_target_distance and tangent",
+    "target_coverage and uncovered_segments",
+    "elapsed_time and remaining_budget",
+    "boundary_contact"
+  ],
+  "reward_rules": "- Reward newly covered target arc length within tolerance.\n- Penalize off-target ink, redundant retracing, boundary contact, and elapsed time.\n- On finish, reward balanced coverage and stroke precision plus closed-loop accuracy; penalize premature completion.\n- Compute coverage geometrically, not from pixels; pen-up movement earns no drawing reward.",
+  "viz_layers": [
+    "Paper bounds and coordinate scale",
+    "Circle, heart, or square reference outline",
+    "Persistent ink strokes and live stroke tip",
+    "Pen position, heading, and pen-up indicator",
+    "Covered versus uncovered target segments",
+    "Deviation heatmap and boundary warnings"
+  ],
+  "ui_layout": "Central WebGL canvas; left target/reset controls; right observations and reward breakdown; bottom run/pause, speed, and timeline.",
+  "step_hz": 5,
+  "physics": {
+    "forward_step": 2,
+    "turn_deg": 30,
+    "paper_size": [100, 100],
+    "start_pose": {
+      "x": 50,
+      "y": 50,
+      "heading_deg": 0,
+      "pen_down": false
+    }
+  }
+}

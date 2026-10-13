@@ -1,0 +1,308 @@
+import * as THREE from "../js/vendor/three.module.js";
+import { BOOST_PADS, ROAD_HALF, SAMPLES, WALL, project, wrap } from "./track.js";
+
+export const TUNE = {
+  accel: 24,
+  brake: 38,
+  coast: 5,
+  maxSpeed: 30,
+  boostSpeed: 44,
+  grassFactor: 0.55,
+  turn: 2.1,
+  grip: 9,
+  driftGrip: 3.6,
+  driftTurn: 1.25,
+  driftMinSpeed: 13,
+  gaugePerSecond: 0.22,
+  nitroTime: 2.2,
+  maxNitro: 2,
+};
+
+const KART_RADIUS = 1.0;
+
+export function emptyInput() {
+  return { throttle: 0, brake: 0, steer: 0, drift: false, nitro: false };
+}
+
+function buildModel(color) {
+  const g = new THREE.Group();
+  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 2.6), paint);
+  body.position.y = 0.55;
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.8), paint);
+  nose.position.set(0, 0.5, 1.5);
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.5), dark);
+  seat.position.set(0, 0.9, -0.5);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.38, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
+  );
+  head.position.set(0, 1.45, -0.2);
+  const visor = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.16, 0.2),
+    new THREE.MeshStandardMaterial({ color: 0x111a33, roughness: 0.1, metalness: 0.6 })
+  );
+  visor.position.set(0, 1.48, 0.12);
+
+  const chassis = new THREE.Group();
+  chassis.add(body, nose, seat, head, visor);
+  chassis.traverse((o) => (o.castShadow = true));
+  g.add(chassis);
+
+  const wheels = [];
+  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.4, 14);
+  wheelGeo.rotateZ(Math.PI / 2);
+  for (const [x, z] of [[-0.95, 0.95], [0.95, 0.95], [-0.95, -0.95], [0.95, -0.95]]) {
+    const w = new THREE.Mesh(wheelGeo, dark);
+    w.position.set(x, 0.42, z);
+    w.castShadow = true;
+    g.add(w);
+    wheels.push(w);
+  }
+
+  const sparkMat = new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9 });
+  const sparks = [-0.95, 0.95].map((x) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), sparkMat);
+    s.position.set(x, 0.25, -1.2);
+    g.add(s);
+    return s;
+  });
+
+  const flame = new THREE.Mesh(
+    new THREE.ConeGeometry(0.28, 1.4, 10),
+    new THREE.MeshBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.85 })
+  );
+  flame.rotation.x = -Math.PI / 2;
+  flame.position.set(0, 0.6, -1.9);
+  g.add(flame);
+
+  return { root: g, chassis, wheels, sparks, sparkMat, flame };
+}
+
+export class Kart {
+  constructor({ name, color, track, startIndex = 0, lane = 0 }) {
+    this.name = name;
+    this.color = color;
+    this.track = track;
+    this.model = buildModel(color);
+    this.reset(startIndex, lane);
+  }
+
+  reset(index, lane = 0) {
+    const i = wrap(index);
+    const t = this.track;
+    this.pos = t.P[i].clone().addScaledVector(t.R[i], lane);
+    this.yaw = Math.atan2(t.T[i].x, t.T[i].z);
+    this.vel = new THREE.Vector3();
+    this.idx = i;
+    this.progress = index;
+    this.lat = lane;
+    this.drifting = false;
+    this.driftDir = 0;
+    this.charge = 0;
+    this.gauge = 0;
+    this.nitro = 0;
+    this.boost = 0;
+    this.bumped = 0;
+    this.prevNitro = false;
+    this.finished = null;
+    this.wheelSpin = 0;
+  }
+
+  get speed() {
+    return this.vel.length();
+  }
+
+  get lap() {
+    return Math.floor(this.progress / SAMPLES);
+  }
+
+  forward(out = new THREE.Vector3()) {
+    return out.set(Math.sin(this.yaw), 0, Math.cos(this.yaw));
+  }
+
+  right(out = new THREE.Vector3()) {
+    return out.set(-Math.cos(this.yaw), 0, Math.sin(this.yaw));
+  }
+
+  step(input, dt) {
+    const f = this.forward();
+    const r = this.right();
+    let vf = this.vel.dot(f);
+    const onGrass = Math.abs(this.lat) > ROAD_HALF + 1.2;
+
+    if (!this.drifting && input.drift && Math.abs(input.steer) > 0.3 && vf > TUNE.driftMinSpeed) {
+      this.drifting = true;
+      this.driftDir = Math.sign(input.steer);
+      this.charge = 0;
+    } else if (this.drifting && (!input.drift || this.speed < TUNE.driftMinSpeed * 0.6)) {
+      this.endDrift();
+    }
+
+    const steer = this.drifting ? this.driftDir * 0.6 + input.steer * 0.4 : input.steer;
+    const grip = Math.min(1, Math.abs(vf) / 8) * Math.sign(vf || 1);
+    this.yaw -= steer * TUNE.turn * (this.drifting ? TUNE.driftTurn : 1) * grip * dt;
+
+    this.forward(f);
+    this.right(r);
+
+    const moving = this.vel.length();
+    if (moving > 0.01) {
+      const reversing = this.vel.dot(f) < 0 && !this.drifting;
+      const aim = reversing ? this.yaw + Math.PI : this.yaw;
+      const now = Math.atan2(this.vel.x, this.vel.z);
+      const slip = Math.atan2(Math.sin(aim - now), Math.cos(aim - now));
+      const traction = this.drifting ? TUNE.driftGrip : TUNE.grip;
+      const dir = now + slip * (1 - Math.exp(-traction * dt));
+      const scrub = 1 - Math.abs(Math.sin(slip)) * (this.drifting ? 0.25 : 0.8) * dt;
+      this.vel.set(Math.sin(dir), 0, Math.cos(dir)).multiplyScalar(moving * scrub);
+    }
+
+    let top = this.boost > 0 ? TUNE.boostSpeed : TUNE.maxSpeed;
+    if (onGrass && this.boost <= 0) top *= TUNE.grassFactor;
+
+    vf = this.vel.dot(f);
+    let dv = 0;
+    const push = input.throttle * TUNE.accel + (this.boost > 0 ? 40 : 0);
+    if (this.speed < top) dv += push * dt;
+    if (input.brake > 0) dv -= input.brake * TUNE.brake * dt;
+    if (input.throttle === 0 && input.brake === 0) dv -= Math.sign(vf) * Math.min(Math.abs(vf), TUNE.coast * dt);
+    if (vf + dv < -8) dv = -8 - vf;
+    this.vel.addScaledVector(f, dv);
+
+    const total = this.vel.length();
+    if (total > top) this.vel.multiplyScalar(Math.max(top, total - (total - top) * Math.min(1, 2 * dt)) / total);
+
+    if (this.drifting) {
+      const hard = input.steer * this.driftDir > 0.2;
+      this.charge += dt * (hard ? 1.5 : 0.6);
+      this.gauge += dt * TUNE.gaugePerSecond;
+    } else {
+      this.gauge += dt * 0.012 * Math.min(1, vf / TUNE.maxSpeed);
+    }
+    if (this.gauge >= 1) {
+      this.gauge -= 1;
+      this.nitro = Math.min(TUNE.maxNitro, this.nitro + 1);
+    }
+
+    if (input.nitro && !this.prevNitro && this.nitro > 0 && this.boost < 0.3) {
+      this.nitro -= 1;
+      this.boost = TUNE.nitroTime;
+    }
+    this.prevNitro = input.nitro;
+    this.boost = Math.max(0, this.boost - dt);
+    this.bumped = Math.max(0, this.bumped - dt);
+
+    this.pos.addScaledVector(this.vel, dt);
+    this.collideTrack();
+  }
+
+  endDrift() {
+    if (this.charge > 1.6) this.boost = Math.max(this.boost, 1.0);
+    else if (this.charge > 0.7) this.boost = Math.max(this.boost, 0.5);
+    this.drifting = false;
+    this.charge = 0;
+  }
+
+  collideTrack() {
+    const t = this.track;
+    const { i, lat } = project(t, this.pos, this.idx);
+    let delta = i - this.idx;
+    if (delta > SAMPLES / 2) delta -= SAMPLES;
+    if (delta < -SAMPLES / 2) delta += SAMPLES;
+    this.progress += delta;
+    this.idx = i;
+    this.lat = lat;
+
+    const limit = WALL - KART_RADIUS;
+    if (Math.abs(lat) > limit) {
+      const n = t.R[i];
+      const side = Math.sign(lat);
+      this.pos.addScaledVector(n, (limit - Math.abs(lat)) * side);
+      const into = this.vel.dot(n) * side;
+      if (into > 0) {
+        this.vel.addScaledVector(n, -into * side * 1.3);
+        this.vel.multiplyScalar(Math.max(0.6, 1 - into * 0.02));
+        if (into > 3) {
+          this.charge = 0;
+          this.bumped = 0.25;
+        }
+      }
+      const along = Math.atan2(t.T[i].x, t.T[i].z);
+      let turn = Math.atan2(Math.sin(along - this.yaw), Math.cos(along - this.yaw));
+      if (Math.abs(turn) > Math.PI / 2) turn -= Math.sign(turn) * Math.PI;
+      this.yaw += turn * 0.08;
+      this.lat = limit * side;
+    }
+
+    for (const pad of BOOST_PADS) {
+      let d = Math.abs(i - pad.i);
+      d = Math.min(d, SAMPLES - d);
+      if (d < 3 && Math.abs(lat - pad.lat) < 1.8) this.boost = Math.max(this.boost, 0.9);
+    }
+  }
+
+  /** Pushes two karts apart and trades part of their velocity. */
+  static bump(a, b) {
+    const dx = b.pos.x - a.pos.x;
+    const dz = b.pos.z - a.pos.z;
+    const dist = Math.hypot(dx, dz);
+    const min = KART_RADIUS * 2.2;
+    if (dist >= min || dist === 0) return;
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const push = (min - dist) / 2;
+    a.pos.x -= nx * push; a.pos.z -= nz * push;
+    b.pos.x += nx * push; b.pos.z += nz * push;
+    const rel = (b.vel.x - a.vel.x) * nx + (b.vel.z - a.vel.z) * nz;
+    if (rel < 0) {
+      a.vel.x += nx * rel * 0.5; a.vel.z += nz * rel * 0.5;
+      b.vel.x -= nx * rel * 0.5; b.vel.z -= nz * rel * 0.5;
+    }
+  }
+
+  syncModel(dt) {
+    const m = this.model;
+    m.root.position.copy(this.pos);
+    const slide = this.drifting ? this.driftDir * 0.15 : 0;
+    m.root.rotation.y = this.yaw + slide;
+    const vl = this.vel.dot(this.right());
+    m.chassis.rotation.z = THREE.MathUtils.lerp(m.chassis.rotation.z, -vl * 0.02, 0.2);
+    m.chassis.position.y = this.bumped > 0 ? Math.sin(this.bumped * 40) * 0.08 : 0;
+
+    this.wheelSpin += this.vel.dot(this.forward()) * dt / 0.42;
+    for (const w of m.wheels) w.rotation.x = this.wheelSpin;
+
+    const show = this.drifting && this.charge > 0.25;
+    for (const s of m.sparks) {
+      s.visible = show;
+      s.scale.setScalar(0.6 + Math.random() * 0.8);
+    }
+    m.sparkMat.color.set(this.charge > 1.6 ? 0xff8a1f : 0x4fc3ff);
+    m.flame.visible = this.boost > 0;
+    m.flame.scale.set(1, 0.7 + Math.random() * 0.6, 1);
+  }
+}
+
+/** The AI presses the same buttons a player does. */
+export function aiInput(kart, skill = 1) {
+  const t = kart.track;
+  const ahead = wrap(kart.idx + 12 + Math.floor(kart.speed * 0.5));
+  const target = t.P[ahead].clone().addScaledVector(t.R[ahead], kart.aiLane || 0);
+  const to = target.sub(kart.pos).setY(0).normalize();
+  const f = kart.forward();
+  const cross = f.z * to.x - f.x * to.z;
+  const angle = Math.atan2(-cross, f.dot(to));
+
+  const far = wrap(kart.idx + 45);
+  const bend = Math.acos(Math.min(1, t.T[kart.idx].dot(t.T[far])));
+
+  const input = emptyInput();
+  input.steer = THREE.MathUtils.clamp(angle * 2.4, -1, 1);
+  input.throttle = bend > 0.9 && kart.speed > 22 * skill ? 0.4 : skill;
+  input.drift = kart.drifting ? bend > 0.25 : bend > 0.55 && kart.speed > 16;
+  input.nitro = kart.nitro > 0 && bend < 0.2;
+  return input;
+}

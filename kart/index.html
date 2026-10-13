@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>跑跑卡丁车 · Three.js</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
+    #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    .hud { position: fixed; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.45); pointer-events: none; }
+    #top { top: 16px; left: 20px; display: flex; gap: 28px; }
+    #top div { display: flex; flex-direction: column; }
+    #top small { font-size: 12px; opacity: .85; letter-spacing: .08em; }
+    #top b { font-size: 30px; font-variant-numeric: tabular-nums; }
+    #board { top: 92px; left: 20px; margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 1.7; }
+    #board .me { color: #ffe066; font-weight: 700; }
+    #map { position: fixed; top: 14px; right: 16px; width: 200px; height: 200px; background: rgba(0,0,0,.25); border-radius: 12px; }
+    #dash { bottom: 22px; right: 26px; text-align: right; }
+    #speed { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
+    #dash small { font-size: 14px; opacity: .85; }
+    #boost { bottom: 26px; left: 26px; width: 300px; }
+    #boost .bar { height: 14px; background: rgba(0,0,0,.35); border-radius: 7px; overflow: hidden; margin-top: 6px; }
+    #gauge { height: 100%; width: 0; background: linear-gradient(90deg, #4fc3ff, #b46cff); }
+    #nitro { font-size: 26px; font-weight: 800; letter-spacing: .2em; color: #4fc3ff; }
+    #drift { bottom: 120px; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: 800; opacity: 0; transition: opacity .15s; }
+    #banner { top: 32%; left: 50%; transform: translate(-50%, -50%); font-size: 96px; font-weight: 900; color: #ffe066; }
+    #panel { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); background: rgba(10,20,40,.72); color: #fff; padding: 18px 28px; border-radius: 14px; text-align: center; }
+    #panel h2 { margin: 0 0 6px; font-size: 24px; }
+    #panel p { margin: 0 0 10px; }
+    #panel kbd { background: #fff2; border-radius: 4px; padding: 1px 6px; }
+    #panel .keys { font-size: 13px; opacity: .85; line-height: 1.8; }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div class="hud" id="top">
+    <div><small>LAP</small><b id="lap">1/3</b></div>
+    <div><small>POS</small><b id="pos">1/4</b></div>
+    <div><small>TIME</small><b id="time">0:00.00</b></div>
+  </div>
+  <ol class="hud" id="board"></ol>
+  <canvas id="map" width="200" height="200"></canvas>
+
+  <div class="hud" id="boost">
+    <div id="nitro">··</div>
+    <div class="bar"><div id="gauge"></div></div>
+  </div>
+  <div class="hud" id="dash"><div id="speed">0</div><small>km/h</small></div>
+  <div class="hud" id="drift">DRIFT</div>
+  <div class="hud" id="banner"></div>
+
+  <div id="panel" hidden>
+    <h2 id="panelTitle"></h2>
+    <p id="panelBody"></p>
+    <div class="keys">
+      <kbd>↑</kbd> 油门 · <kbd>↓</kbd> 刹车/倒车 · <kbd>← →</kbd> 转向<br />
+      转弯时按住 <kbd>Shift</kbd> 漂移，松开拿小加速 · 漂移攒满蓝条得一个氮气<br />
+      <kbd>Space</kbd> 放氮气 · <kbd>R</kbd> 卡住时回到赛道
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drawfly Atelier — Trump Portrait</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">✎</div>
+      <div>
+        <h1>Drawfly Atelier</h1>
+        <p>照片驱动笔触 · 明暗排线 · likeness 打分 · 特朗普官方肖像</p>
+      </div>
+    </div>
+    <div class="status" id="statusPill">connecting…</div>
+  </header>
+
+  <main class="layout">
+    <section class="viewport-wrap">
+      <canvas id="view"></canvas>
+      <div class="hud">
+        <span id="hudAction">HOLD</span>
+        <span id="hudReward">R 0.00</span>
+        <span id="hudCover">cover 0%</span>
+      </div>
+      <div class="progress-board" id="progressBoard">
+        <div class="pb-title">训练进展（局末才算分）</div>
+        <div class="pb-grid">
+          <div><em id="pbEp">0</em><span>局数</span></div>
+          <div><em id="pbLike">—</em><span>本局 likeness</span></div>
+          <div><em id="pbBest">—</em><span>历史最佳</span></div>
+          <div><em id="pbCover">0%</em><span>覆盖</span></div>
+        </div>
+        <div class="pb-bar"><i id="pbBar"></i></div>
+        <div class="pb-note" id="pbNote">等待第一局结束… 每步 MaleCNS ~0.2s，一局可能要几分钟</div>
+        <ol class="pb-list" id="pbList"></ol>
+      </div>
+      <div class="neural-hud" id="neuralHud" aria-label="neural readout">
+        <div class="neural-hud-title">MaleCNS · DNp20</div>
+        <div class="neural-hud-bars">
+          <div class="nh-row"><span class="nh-l">L</span><div class="nh-track"><i id="hudBarL"></i></div><span id="hudHzL">0</span></div>
+          <div class="nh-row"><span class="nh-r">R</span><div class="nh-track"><i id="hudBarR"></i></div><span id="hudHzR">0</span></div>
+        </div>
+        <div class="neural-hud-meta" id="hudNeuralMeta">KC — · side —</div>
+      </div>
+      <div class="paper-preview-wrap">
+        <img id="paperPreview" class="paper-preview" alt="drawing" />
+        <span class="paper-preview-label">纸面特写 · 照片底图 + 铅笔目标</span>
+      </div>
+      <div class="cam-hint" id="camHint">点「MaleCNS 脑图」看真实 soma 点云 · 绿/橙=DNp20</div>
+    </section>
+
+    <aside class="side">
+      <div class="card">
+        <h2>视角</h2>
+        <div class="btns">
+          <button id="btnViewDesk" type="button" class="ghost">画桌</button>
+          <button id="btnViewTop" type="button" class="ghost">俯视</button>
+        </div>
+        <div class="btns" style="margin-top:0.45rem">
+          <button id="btnViewSide" type="button" class="ghost">侧视</button>
+          <button id="btnViewBrain" type="button">MaleCNS 脑图</button>
+        </div>
+        <label class="row" style="margin-top:0.45rem"><input type="checkbox" id="follow" /> 跟随果蝇</label>
+        <label class="row">
+          <input type="checkbox" id="autoOrbit" /> 自动环绕
+        </label>
+      </div>
+
+      <div class="card">
+        <h2>环境</h2>
+        <label>目标
+          <select id="shape">
+            <option value="trump" selected>trump portrait</option>
+            <option value="circle">circle</option>
+            <option value="heart">heart</option>
+            <option value="square">square</option>
+          </select>
+        </label>
+        <label>控制模式
+          <select id="mode">
+            <option value="malecns">MaleCNS 学习</option>
+            <option value="demo">人手示范</option>
+            <option value="imitation">纯模仿</option>
+            <option value="hybrid">混合（示范+MaleCNS）</option>
+          </select>
+        </label>
+        <label class="row">
+          <input type="checkbox" id="auto" checked /> 自动跑决策
+        </label>
+        <label class="row">
+          <input type="checkbox" id="train" checked /> 连续训练（局末重置+存档）
+        </label>
+        <div class="btns">
+          <button id="btnStep" type="button">单步决策</button>
+          <button id="btnReset" type="button" class="ghost">重置</button>
+        </div>
+        <div class="btns">
+          <button id="btnRec" type="button">开始示范</button>
+          <button id="btnClearDemo" type="button" class="ghost">清空示范</button>
+        </div>
+        <div class="btns">
+          <button id="btnSave" type="button" class="ghost">保存权重</button>
+          <button id="btnLoad" type="button" class="ghost">加载权重</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>神经网络</h2>
+        <label>决策引擎
+          <select id="backend">
+            <option value="malecns" selected>MaleCNS 真实连接组</option>
+            <option value="gpt6">GPT-6-astra (Merouter)</option>
+            <option value="auto">auto</option>
+          </select>
+        </label>
+        <div class="neural-grid">
+          <img id="retinaImg" class="retina" alt="retina" width="128" height="128" />
+          <canvas id="neuralGauges" width="320" height="140"></canvas>
+        </div>
+        <canvas id="kcBars" width="320" height="72" class="kc"></canvas>
+        <pre id="neuralMeta" class="neural-meta">waiting for MaleCNS…</pre>
+        <pre id="neuralOut" class="neural">waiting for spikes…</pre>
+      </div>
+
+      <div class="card">
+        <h2>成绩（satoru 式）</h2>
+        <dl class="stats">
+          <div><dt>level</dt><dd id="statLevel">—</dd></div>
+          <div><dt>accuracy</dt><dd id="statAcc">—</dd></div>
+        </dl>
+        <canvas id="accCurve" width="280" height="72" class="curve"></canvas>
+        <pre id="trainOut">episode 0…</pre>
+        <pre id="gradeOut">grade…</pre>
+      </div>
+
+      <div class="card">
+        <h2>控制 / 回报</h2>
+        <dl class="stats">
+          <div><dt>action</dt><dd id="statAction">—</dd></div>
+          <div><dt>reason</dt><dd id="statReason">—</dd></div>
+          <div><dt>episode R</dt><dd id="statR">0</dd></div>
+          <div><dt>coverage</dt><dd id="statCover">0%</dd></div>
+          <div><dt>pressure</dt><dd id="statPress">0</dd></div>
+          <div><dt>hatch</dt><dd id="statHatch">0</dd></div>
+          <div><dt>demos</dt><dd id="statDemo">0</dd></div>
+          <div><dt>off-ink</dt><dd id="statOff">0</dd></div>
+          <div><dt>steps</dt><dd id="statSteps">0</dd></div>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h2>观察（环境）</h2>
+        <pre id="obsOut">—</pre>
+      </div>
+
+      <div class="card dim">
+        <h2>对齐 hae.satoru.net</h2>
+        <p>参考「读写真假名苍蝇」：课程升级（直线→圆→脸→发→肖像）、写完再打分、未见图变换测试 ≥门槛才晋级、多巴胺只在批改后。运动侧用描线 pursuit（类似其下行指令），脑侧用 MaleCNS 调制。目标精度约 85%。</p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module">
+    import("./js/loop.js").catch((err) => {
+      console.error(err);
+      const el = document.getElementById("statusPill");
+      if (el) el.textContent = `load error: ${err.message}`;
+    });
+  </script>
+</body>
+</html>

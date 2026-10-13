@@ -1,0 +1,3 @@
+[submodule "vendor/stonkfly"]
+	path = vendor/stonkfly
+	url = https://github.com/nftechie/stonkfly.git

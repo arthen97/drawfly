@@ -1,0 +1,21 @@
+{
+  "count": 18834,
+  "stride": 4,
+  "fields": [
+    "x",
+    "y",
+    "z",
+    "role"
+  ],
+  "roles": {
+    "0": "KC",
+    "1": "DNp20_L",
+    "2": "DNp20_R",
+    "3": "DAN",
+    "4": "visual",
+    "5": "descending",
+    "6": "other"
+  },
+  "source": "MaleCNS annotations.feather somaLocation (sampled)",
+  "note": "Real soma positions; DNp20 neighborhood amplified for readout visibility. Not neuron skeletons."
+}
