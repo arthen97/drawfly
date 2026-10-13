@@ -1,5 +1,6 @@
-import * as THREE from "../js/vendor/three.module.js";
-import { BOOST_PADS, ROAD_HALF, SAMPLES, WALL, project, wrap } from "./track.js";
+import * as THREE from "three";
+import { BOOST_PADS, ROAD_HALF, SAMPLES, project, wrap } from "./track.js";
+import { KART_SCALE } from "./kart-model.js";
 
 export const TUNE = {
   accel: 24,
@@ -24,69 +25,15 @@ export function emptyInput() {
   return { throttle: 0, brake: 0, steer: 0, drift: false, nitro: false };
 }
 
-function buildModel(color) {
-  const g = new THREE.Group();
-  const paint = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.2 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 });
-
-  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 2.6), paint);
-  body.position.y = 0.55;
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.3, 0.8), paint);
-  nose.position.set(0, 0.5, 1.5);
-  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.5), dark);
-  seat.position.set(0, 0.9, -0.5);
-  const head = new THREE.Mesh(
-    new THREE.SphereGeometry(0.38, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 })
-  );
-  head.position.set(0, 1.45, -0.2);
-  const visor = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.16, 0.2),
-    new THREE.MeshStandardMaterial({ color: 0x111a33, roughness: 0.1, metalness: 0.6 })
-  );
-  visor.position.set(0, 1.48, 0.12);
-
-  const chassis = new THREE.Group();
-  chassis.add(body, nose, seat, head, visor);
-  chassis.traverse((o) => (o.castShadow = true));
-  g.add(chassis);
-
-  const wheels = [];
-  const wheelGeo = new THREE.CylinderGeometry(0.42, 0.42, 0.4, 14);
-  wheelGeo.rotateZ(Math.PI / 2);
-  for (const [x, z] of [[-0.95, 0.95], [0.95, 0.95], [-0.95, -0.95], [0.95, -0.95]]) {
-    const w = new THREE.Mesh(wheelGeo, dark);
-    w.position.set(x, 0.42, z);
-    w.castShadow = true;
-    g.add(w);
-    wheels.push(w);
-  }
-
-  const sparkMat = new THREE.MeshBasicMaterial({ color: 0x4fc3ff, transparent: true, opacity: 0.9 });
-  const sparks = [-0.95, 0.95].map((x) => {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), sparkMat);
-    s.position.set(x, 0.25, -1.2);
-    g.add(s);
-    return s;
-  });
-
-  const flame = new THREE.Mesh(
-    new THREE.ConeGeometry(0.28, 1.4, 10),
-    new THREE.MeshBasicMaterial({ color: 0xff7a18, transparent: true, opacity: 0.85 })
-  );
-  flame.rotation.x = -Math.PI / 2;
-  flame.position.set(0, 0.6, -1.9);
-  g.add(flame);
-
-  return { root: g, chassis, wheels, sparks, sparkMat, flame };
-}
+const WHEEL_RADIUS = 0.21 * KART_SCALE;
 
 export class Kart {
-  constructor({ name, color, track, startIndex = 0, lane = 0 }) {
+  /** `model` comes from buildKartModel(): this class only moves it, never builds it. */
+  constructor({ name, color, track, model, startIndex = 0, lane = 0 }) {
     this.name = name;
     this.color = color;
     this.track = track;
-    this.model = buildModel(color);
+    this.model = model;
     this.reset(startIndex, lane);
   }
 
@@ -109,6 +56,7 @@ export class Kart {
     this.prevNitro = false;
     this.finished = null;
     this.wheelSpin = 0;
+    this.steerShown = 0;
   }
 
   get speed() {
@@ -142,6 +90,7 @@ export class Kart {
     }
 
     const steer = this.drifting ? this.driftDir * 0.6 + input.steer * 0.4 : input.steer;
+    this.steerShown = steer;
     const grip = Math.min(1, Math.abs(vf) / 8) * Math.sign(vf || 1);
     this.yaw -= steer * TUNE.turn * (this.drifting ? TUNE.driftTurn : 1) * grip * dt;
 
@@ -216,7 +165,7 @@ export class Kart {
     this.idx = i;
     this.lat = lat;
 
-    const limit = WALL - KART_RADIUS;
+    const limit = (lat > 0 ? t.wallRight[i] : t.wallLeft[i]) - KART_RADIUS;
     if (Math.abs(lat) > limit) {
       const n = t.R[i];
       const side = Math.sign(lat);
@@ -272,8 +221,12 @@ export class Kart {
     m.chassis.rotation.z = THREE.MathUtils.lerp(m.chassis.rotation.z, -vl * 0.02, 0.2);
     m.chassis.position.y = this.bumped > 0 ? Math.sin(this.bumped * 40) * 0.08 : 0;
 
-    this.wheelSpin += this.vel.dot(this.forward()) * dt / 0.42;
-    for (const w of m.wheels) w.rotation.x = this.wheelSpin;
+    this.wheelSpin += (this.vel.dot(this.forward()) * dt) / WHEEL_RADIUS;
+    const lock = this.drifting ? this.driftDir * 0.25 : -this.steerShown * 0.45;
+    for (const w of m.wheels) {
+      w.node.rotation.x = this.wheelSpin;
+      if (w.front) w.node.rotation.y = THREE.MathUtils.lerp(w.node.rotation.y, lock, Math.min(1, dt * 12));
+    }
 
     const show = this.drifting && this.charge > 0.25;
     for (const s of m.sparks) {

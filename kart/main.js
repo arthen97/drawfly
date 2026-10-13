@@ -1,6 +1,8 @@
-import * as THREE from "../js/vendor/three.module.js";
+import * as THREE from "three";
 import { SAMPLES, buildTrackMeshes, createTrackData } from "./track.js";
 import { Kart, TUNE, aiInput, emptyInput } from "./kart.js";
+import { loadAssets } from "./assets.js";
+import { buildKartModel } from "./kart-model.js";
 
 const LAPS = 3;
 const STEP = 1 / 120;
@@ -12,35 +14,50 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
 
+const loadingTitle = document.getElementById("panelTitle");
+const loadingBody = document.getElementById("panelBody");
+document.getElementById("panel").hidden = false;
+loadingTitle.textContent = "加载贴图与模型…";
+const assets = await loadAssets(renderer, (p) => (loadingBody.textContent = `${Math.round(p * 100)}%`));
+
+// The HDRI sky both lights every surface (environment) and is what you see (background).
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x8fd3ff);
-scene.fog = new THREE.Fog(0x8fd3ff, 80, 260);
+scene.background = assets.sky.background;
+scene.environment = assets.sky.environment;
+scene.backgroundBlurriness = 0.02;
+scene.fog = new THREE.Fog(0xc9d8e4, 120, 420);
 
-const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 600);
-scene.add(new THREE.HemisphereLight(0xdff3ff, 0x4a7a3a, 0.9));
-const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
+// The "puresky" HDRI has no ground, so add the green bounce light a real field would give.
+scene.add(new THREE.HemisphereLight(0xdfeeff, 0x5d6b3c, 0.55));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
-Object.assign(sun.shadow.camera, { left: -40, right: 40, top: 40, bottom: -40, near: 1, far: 160 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.03;
+Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 180 });
 scene.add(sun, sun.target);
 
-// ② Track: one spline turned into road, curbs, walls, pads, trees.
+// ② Track: one spline turned into road, curbs, walls, tyre barriers, billboards, trees.
 const track = createTrackData();
-buildTrackMeshes(scene, track);
+buildTrackMeshes(scene, track, assets);
 
-// ③ Karts: the player and three AI share one class.
+// ③ Karts: the player and three AI share one class; each gets its own Kenney body and stickers.
 const roster = [
-  { name: "你", color: 0xff3b30, skill: null },
-  { name: "Dao", color: 0x2f80ff, skill: 0.98 },
-  { name: "Bazzi", color: 0xffcc00, skill: 0.95 },
-  { name: "Marid", color: 0x34c759, skill: 0.92 },
+  { name: "你", color: 0x7b61ff, skill: null, body: "oobi", number: 1, sponsor: "decal-turbo-noodle" },
+  { name: "Dao", color: 0xe0559f, skill: 0.98, body: "oodi", number: 7, sponsor: "decal-dao-motors" },
+  { name: "Bazzi", color: 0xffc83a, skill: 0.95, body: "ooli", number: 3, sponsor: "decal-bazzi-oil" },
+  { name: "Marid", color: 0x3fc1a9, skill: 0.92, body: "oopi", number: 8, sponsor: "decal-nitro-fizz" },
 ];
 const karts = roster.map((r, k) => {
   const kart = new Kart({
     name: r.name,
     color: r.color,
     track,
+    model: buildKartModel(assets, r),
     startIndex: -6 - Math.floor(k / 2) * 7,
     lane: k % 2 ? 3 : -3,
   });
@@ -153,9 +170,14 @@ const camPos = new THREE.Vector3();
 const camLook = new THREE.Vector3();
 const tmpF = new THREE.Vector3();
 function updateCamera(dt, snap = false) {
+  if (window.kartGame?.cameraOverride) {
+    window.kartGame.cameraOverride(camera, player);
+    return;
+  }
   const f = player.forward(tmpF);
-  const want = player.pos.clone().addScaledVector(f, -6.5).setY(2.8);
-  const look = player.pos.clone().addScaledVector(f, 4).setY(1.2);
+  // Leading the target by vel/14 cancels the steady lag of the exponential follow below.
+  const want = player.pos.clone().addScaledVector(f, -6.8).addScaledVector(player.vel, 1 / 14).setY(3.4);
+  const look = player.pos.clone().addScaledVector(f, 6).setY(1.3);
   const k = snap ? 1 : 1 - Math.exp(-dt * 14);
   camPos.lerp(want, k);
   camLook.lerp(look, snap ? 1 : 1 - Math.exp(-dt * 18));
@@ -166,7 +188,7 @@ function updateCamera(dt, snap = false) {
   camera.fov += (fov - camera.fov) * Math.min(1, dt * 4);
   camera.updateProjectionMatrix();
 
-  sun.position.copy(player.pos).add(new THREE.Vector3(30, 60, 20));
+  sun.position.copy(player.pos).add(new THREE.Vector3(40, 70, -30));
   sun.target.position.copy(player.pos);
 }
 
@@ -286,4 +308,4 @@ ui.panelBody.textContent = "按 Enter 开始";
 ui.panel.hidden = false;
 requestAnimationFrame(frame);
 
-window.kartGame = { karts, player, track, state, startRace };
+window.kartGame = { karts, player, track, state, startRace, scene, camera, renderer, THREE, cameraOverride: null };

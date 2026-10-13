@@ -1,0 +1,86 @@
+{
+  "decal-dao-motors": {
+    "file": "decal-dao-motors.webp",
+    "w": 512,
+    "h": 185,
+    "alpha": true
+  },
+  "decal-bazzi-oil": {
+    "file": "decal-bazzi-oil.webp",
+    "w": 512,
+    "h": 267,
+    "alpha": true
+  },
+  "decal-turbo-noodle": {
+    "file": "decal-turbo-noodle.webp",
+    "w": 512,
+    "h": 473,
+    "alpha": true
+  },
+  "decal-nitro-fizz": {
+    "file": "decal-nitro-fizz.webp",
+    "w": 512,
+    "h": 210,
+    "alpha": true
+  },
+  "decal-flames": {
+    "file": "decal-flames.webp",
+    "w": 1024,
+    "h": 291,
+    "alpha": true
+  },
+  "decal-checker": {
+    "file": "decal-checker.webp",
+    "w": 1024,
+    "h": 138,
+    "alpha": true
+  },
+  "tree-pine": {
+    "file": "tree-pine.webp",
+    "w": 480,
+    "h": 1024,
+    "alpha": true
+  },
+  "tree-broadleaf": {
+    "file": "tree-broadleaf.webp",
+    "w": 798,
+    "h": 1024,
+    "alpha": true
+  },
+  "bush": {
+    "file": "bush.webp",
+    "w": 512,
+    "h": 477,
+    "alpha": true
+  },
+  "curb": {
+    "file": "curb.webp",
+    "w": 512,
+    "h": 512,
+    "alpha": false
+  },
+  "tire-tread": {
+    "file": "tire-tread.webp",
+    "w": 512,
+    "h": 512,
+    "alpha": false
+  },
+  "banner-ads-1": {
+    "file": "banner-ads-1.webp",
+    "w": 1024,
+    "h": 683,
+    "alpha": false
+  },
+  "banner-ads-2": {
+    "file": "banner-ads-2.webp",
+    "w": 1024,
+    "h": 683,
+    "alpha": false
+  },
+  "banner-start": {
+    "file": "banner-start.webp",
+    "w": 1024,
+    "h": 683,
+    "alpha": false
+  }
+}

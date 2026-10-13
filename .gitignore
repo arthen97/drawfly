@@ -15,3 +15,6 @@ data/progress.json
 
 # Local screenshots
 /_*.png
+
+# raw image generations (web copies live in kart/assets/tex)
+kart/assets/generated/*.png

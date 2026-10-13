@@ -1,0 +1,86 @@
+{
+  "decal-dao-motors": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Racing sponsor sticker logo reading 'DAO MOTORS', bold chrome italic wordmark with a red stylized wing emblem, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "decal-bazzi-oil": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Motor oil racing sponsor sticker reading 'BAZZI OIL', yellow and black, glossy oil drop emblem, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "decal-turbo-noodle": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Fun racing sponsor sticker reading 'TURBO NOODLE', red and white, steaming noodle bowl with a lightning bolt, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "decal-nitro-fizz": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "A single glossy racing sponsor sticker reading 'NITRO FIZZ', bold italic letters, orange and blue, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "decal-flames": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1536x1024",
+    "transparent": true,
+    "prompt": "Long horizontal hot-rod racing flames graphic for the side of a kart, orange to yellow gradient with dark red outline, flames pointing right, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "decal-checker": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1536x1024",
+    "transparent": true,
+    "prompt": "Horizontal racing stripe decal: a band of black and white checkered flag squares that fades into speed streaks on the right, isolated on a fully transparent background, flat vinyl racing decal, crisp edges, thin white sticker outline, no drop shadow, no mockup, no background"
+  },
+  "tree-pine": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "A single tall green pine tree with a straight brown trunk, photorealistic, centered, whole plant visible from base to top, soft overcast daylight, isolated on a fully transparent background, no ground, no shadow, no pot"
+  },
+  "tree-broadleaf": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "A single round leafy green deciduous tree with a short trunk, photorealistic, centered, whole plant visible from base to top, soft overcast daylight, isolated on a fully transparent background, no ground, no shadow, no pot"
+  },
+  "bush": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "A single dense round green garden shrub, photorealistic, centered, whole plant visible from base to top, soft overcast daylight, isolated on a fully transparent background, no ground, no shadow, no pot"
+  },
+  "curb": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": false,
+    "prompt": "Motorsport race track kerb: exactly two red and two white painted concrete blocks arranged left to right as vertical stripes, worn paint, rubber tire marks, fine grit, seamless tileable texture, top-down orthographic flat scan, even diffuse lighting, fills the entire frame edge to edge, no perspective, no border, no text"
+  },
+  "tire-tread": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": false,
+    "prompt": "Black rubber go-kart racing tire tread pattern with shallow grooves and fine rubber grain, seamless tileable texture, top-down orthographic flat scan, even diffuse lighting, fills the entire frame edge to edge, no perspective, no border, no text"
+  },
+  "banner-ads-1": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1536x1024",
+    "transparent": false,
+    "prompt": "Trackside advertising billboard artwork for a cartoon kart racing game, three fictional sponsor logos 'NITRO FIZZ', 'DAO MOTORS' and 'BAZZI OIL' side by side on a glossy blue background with white speed lines, flat graphic design, fills the entire frame, no frame, no perspective, no people"
+  },
+  "banner-ads-2": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1536x1024",
+    "transparent": false,
+    "prompt": "Trackside advertising billboard artwork for a cartoon kart racing game, big 'TURBO NOODLE' logo with a steaming noodle bowl and lightning bolt on a bright red background with yellow halftone burst, flat graphic design, fills the entire frame, no frame, no perspective, no people"
+  },
+  "banner-start": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1536x1024",
+    "transparent": false,
+    "prompt": "Race start finish gantry banner reading 'START · FINISH' in huge bold italic white letters on black, checkered flag blocks on both ends, yellow accent stripes, flat graphic design, fills the entire frame, no frame, no perspective"
+  }
+}
