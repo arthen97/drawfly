@@ -53,6 +53,48 @@
     "h": 477,
     "alpha": true
   },
+  "toon-pine": {
+    "file": "toon-pine.webp",
+    "w": 537,
+    "h": 1024,
+    "alpha": true
+  },
+  "toon-broadleaf": {
+    "file": "toon-broadleaf.webp",
+    "w": 780,
+    "h": 1024,
+    "alpha": true
+  },
+  "toon-bush": {
+    "file": "toon-bush.webp",
+    "w": 512,
+    "h": 469,
+    "alpha": true
+  },
+  "avatar-you": {
+    "file": "avatar-you.webp",
+    "w": 254,
+    "h": 256,
+    "alpha": true
+  },
+  "avatar-dao": {
+    "file": "avatar-dao.webp",
+    "w": 250,
+    "h": 256,
+    "alpha": true
+  },
+  "avatar-bazzi": {
+    "file": "avatar-bazzi.webp",
+    "w": 256,
+    "h": 255,
+    "alpha": true
+  },
+  "avatar-marid": {
+    "file": "avatar-marid.webp",
+    "w": 247,
+    "h": 256,
+    "alpha": true
+  },
   "curb": {
     "file": "curb.webp",
     "w": 512,

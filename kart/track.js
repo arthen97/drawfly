@@ -151,6 +151,110 @@ export const BOOST_PADS = [
   { i: 610, lat: 3 },
 ];
 
+function canvasTexture(w, h, draw, { repeat = false } = {}) {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+/**
+ * Boost pads: a glowing panel whose chevrons scroll forward, a pulsing halo, and two
+ * crossed curtains of light rising off the pad. All unlit and additive, animated per frame.
+ */
+function buildBoostPads(scene, track) {
+  const arrows = canvasTexture(128, 128, (g, w, h) => {
+    const bg = g.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "#ff7a00");
+    bg.addColorStop(1, "#ffb300");
+    g.fillStyle = bg;
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#fff6c2";
+    g.beginPath();
+    g.moveTo(w * 0.5, h * 0.12);
+    g.lineTo(w * 0.92, h * 0.55);
+    g.lineTo(w * 0.72, h * 0.55);
+    g.lineTo(w * 0.5, h * 0.33);
+    g.lineTo(w * 0.28, h * 0.55);
+    g.lineTo(w * 0.08, h * 0.55);
+    g.closePath();
+    g.fill();
+  }, { repeat: true });
+  arrows.repeat.set(1, 2.5);
+  const halo = canvasTexture(128, 128, (g, w, h) => {
+    const r = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2);
+    r.addColorStop(0, "rgba(255,210,90,1)");
+    r.addColorStop(1, "rgba(255,120,0,0)");
+    g.fillStyle = r;
+    g.fillRect(0, 0, w, h);
+  });
+  const beams = canvasTexture(256, 256, (g, w, h) => {
+    const rand = seeded(11);
+    for (let k = 0; k < 26; k++) {
+      const x = rand() * w;
+      const bw = 2 + rand() * 7;
+      const y0 = rand() * h;
+      const len = 40 + rand() * 120;
+      const grad = g.createLinearGradient(0, y0, 0, y0 + len);
+      grad.addColorStop(0, "rgba(255,240,180,0)");
+      grad.addColorStop(0.5, `rgba(255,${190 + rand() * 60},80,${0.5 + rand() * 0.5})`);
+      grad.addColorStop(1, "rgba(255,240,180,0)");
+      g.fillStyle = grad;
+      g.fillRect(x, y0, bw, len);
+      g.fillRect(x, y0 - h, bw, len);
+    }
+  }, { repeat: true });
+  const fade = canvasTexture(4, 128, (g, w, h) => {
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, "#000");
+    grad.addColorStop(1, "#fff");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, w, h);
+  });
+  fade.colorSpace = THREE.NoColorSpace;
+
+  const additive = { transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false };
+  const panelMat = new THREE.MeshBasicMaterial({ map: arrows, toneMapped: false });
+  const haloMat = new THREE.MeshBasicMaterial({ map: halo, ...additive, opacity: 0.7 });
+  const beamMat = new THREE.MeshBasicMaterial({ map: beams, alphaMap: fade, side: THREE.DoubleSide, ...additive });
+
+  for (const pad of BOOST_PADS) {
+    const { i, lat } = pad;
+    const group = new THREE.Group();
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(3, 5), panelMat);
+    panel.rotation.x = -Math.PI / 2;
+    panel.position.y = 0.06;
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(5.5, 7.5), haloMat);
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = 0.08;
+    group.add(panel, glow);
+    for (const turn of [0, Math.PI / 2]) {
+      const curtain = new THREE.Mesh(new THREE.PlaneGeometry(turn ? 3 : 5, 2.6), beamMat);
+      curtain.position.y = 1.3;
+      curtain.rotation.y = turn;
+      group.add(curtain);
+    }
+    const p = track.P[i];
+    const r = track.R[i];
+    group.position.set(p.x + r.x * lat, 0, p.z + r.z * lat);
+    group.rotation.y = Math.atan2(track.T[i].x, track.T[i].z);
+    panel.rotation.z = Math.PI;
+    scene.add(group);
+  }
+
+  return {
+    update(time, dt) {
+      arrows.offset.y -= dt * 2.4;
+      beams.offset.y -= dt * 0.9;
+      haloMat.opacity = 0.55 + 0.3 * Math.sin(time * 9);
+    },
+  };
+}
+
 const BILLBOARDS = [
   { i: 40, side: 1, tex: "banner-ads-1" },
   { i: 150, side: -1, tex: "banner-ads-2" },
@@ -247,18 +351,7 @@ export function buildTrackMeshes(scene, track, assets) {
   startLine.rotation.y = Math.atan2(track.T[0].x, track.T[0].z);
   scene.add(startLine);
 
-  const padMat = new THREE.MeshStandardMaterial({
-    color: 0xffd400, emissive: 0xff9900, emissiveIntensity: 0.6, roughness: 0.4, metalness: 0.3,
-    normalMap: metal.normalMap,
-  });
-  for (const pad of BOOST_PADS) {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3, 5), padMat);
-    const p = track.P[pad.i];
-    const r = track.R[pad.i];
-    mesh.position.set(p.x + r.x * pad.lat, 0.06, p.z + r.z * pad.lat);
-    mesh.rotation.set(-Math.PI / 2, 0, Math.atan2(track.T[pad.i].x, track.T[pad.i].z));
-    scene.add(mesh);
-  }
+  const pads = buildBoostPads(scene, track);
 
   // Start/finish gantry: steel posts and the generated START · FINISH banner.
   const steel = new THREE.MeshStandardMaterial({ ...metal, color: 0x9aa3ad, metalness: 1 });
@@ -337,9 +430,9 @@ export function buildTrackMeshes(scene, track, assets) {
   // Foliage: generated photo cut-outs on crossed planes, alpha-tested so shadows keep the silhouette.
   const rand = seeded(7);
   const kinds = [
-    { tex: gen["tree-pine"], h: 11, count: 110, near: WALL + 5, far: 45 },
-    { tex: gen["tree-broadleaf"], h: 8.5, count: 70, near: WALL + 5, far: 45 },
-    { tex: gen.bush, h: 2.2, count: 120, near: WALL + 2, far: 14 },
+    { tex: gen["toon-pine"] || gen["tree-pine"], h: 11, count: 110, near: WALL + 5, far: 45 },
+    { tex: gen["toon-broadleaf"] || gen["tree-broadleaf"], h: 8.5, count: 70, near: WALL + 5, far: 45 },
+    { tex: gen["toon-bush"] || gen.bush, h: 2.2, count: 120, near: WALL + 2, far: 14 },
   ];
   for (const kind of kinds) {
     const spots = [];
@@ -366,4 +459,6 @@ export function buildTrackMeshes(scene, track, assets) {
     mesh.receiveShadow = true;
     scene.add(mesh);
   }
+
+  return { update: pads.update };
 }

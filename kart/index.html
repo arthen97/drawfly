@@ -1,34 +1,57 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>跑跑卡丁车 · Three.js</title>
+  <title>Turbo Kart · Three.js</title>
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: system-ui, -apple-system, "PingFang SC", sans-serif; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #8fd3ff; font-family: "Avenir Next", system-ui, -apple-system, sans-serif; }
     #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-    .hud { position: fixed; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,.45); pointer-events: none; }
+    .hud { position: fixed; color: #fff; pointer-events: none; font-weight: 800; font-style: italic;
+           text-shadow: 2px 2px 0 #1b1530, -1px -1px 0 #1b1530, 1px -1px 0 #1b1530, -1px 1px 0 #1b1530; }
     #top { top: 16px; left: 20px; display: flex; gap: 28px; }
     #top div { display: flex; flex-direction: column; }
-    #top small { font-size: 12px; opacity: .85; letter-spacing: .08em; }
-    #top b { font-size: 30px; font-variant-numeric: tabular-nums; }
-    #board { top: 92px; left: 20px; margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 1.7; }
-    #board .me { color: #ffe066; font-weight: 700; }
-    #map { position: fixed; top: 14px; right: 16px; width: 200px; height: 200px; background: rgba(0,0,0,.25); border-radius: 12px; }
-    #dash { bottom: 22px; right: 26px; text-align: right; }
-    #speed { font-size: 64px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1; }
-    #dash small { font-size: 14px; opacity: .85; }
-    #boost { bottom: 26px; left: 26px; width: 300px; }
-    #boost .bar { height: 14px; background: rgba(0,0,0,.35); border-radius: 7px; overflow: hidden; margin-top: 6px; }
+    #top small { font-size: 12px; letter-spacing: .12em; color: #ffe066; }
+    #top b { font-size: 32px; font-variant-numeric: tabular-nums; }
+
+    #board { top: 92px; left: 18px; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    #board li { display: flex; align-items: center; gap: 8px; padding: 3px 14px 3px 4px; border-radius: 30px;
+                background: rgba(27,21,48,.55); border: 2px solid #1b1530; font-size: 15px; transition: transform .2s; }
+    #board li.me { background: rgba(255,224,102,.9); color: #1b1530; text-shadow: none; transform: translateX(8px); }
+    #board li.done .name::after { content: " ✓"; color: #7dff9b; }
+    #board .rank { width: 18px; text-align: center; font-size: 18px; }
+    #board img { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--ring); background: #fff; object-fit: cover; }
+
+    #map { position: fixed; top: 14px; right: 16px; width: 220px; height: 220px; background: rgba(27,21,48,.35);
+           border: 3px solid #1b1530; border-radius: 16px; }
+
+    #me { bottom: 22px; left: 22px; display: flex; align-items: flex-end; gap: 12px; }
+    #meAvatar { width: 92px; height: 92px; border-radius: 50%; border: 5px solid #fff; background: #fff;
+                box-shadow: 4px 4px 0 #1b1530; object-fit: cover; }
+    #meName { font-size: 18px; color: #ffe066; }
+    #boost { width: 280px; }
+    #boost .bar { height: 16px; background: rgba(27,21,48,.6); border: 2px solid #1b1530; border-radius: 9px; overflow: hidden; margin-top: 6px; }
     #gauge { height: 100%; width: 0; background: linear-gradient(90deg, #4fc3ff, #b46cff); }
-    #nitro { font-size: 26px; font-weight: 800; letter-spacing: .2em; color: #4fc3ff; }
-    #drift { bottom: 120px; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: 800; opacity: 0; transition: opacity .15s; }
-    #banner { top: 32%; left: 50%; transform: translate(-50%, -50%); font-size: 96px; font-weight: 900; color: #ffe066; }
-    #panel { position: fixed; left: 50%; top: 58%; transform: translateX(-50%); background: rgba(10,20,40,.72); color: #fff; padding: 18px 28px; border-radius: 14px; text-align: center; }
-    #panel h2 { margin: 0 0 6px; font-size: 24px; }
+    #nitro { font-size: 28px; letter-spacing: .2em; color: #4fc3ff; }
+
+    #dash { bottom: 22px; right: 26px; text-align: right; }
+    #speed { font-size: 72px; font-variant-numeric: tabular-nums; line-height: 1; }
+    #dash small { font-size: 14px; color: #ffe066; }
+    #drift { bottom: 130px; left: 50%; transform: translateX(-50%); font-size: 30px; opacity: 0; transition: opacity .15s; }
+    #banner { top: 32%; left: 50%; transform: translate(-50%, -50%); font-size: 110px; color: #ffe066;
+              text-shadow: 5px 5px 0 #1b1530, -2px -2px 0 #1b1530, 2px -2px 0 #1b1530, -2px 2px 0 #1b1530; }
+
+    #panel { position: fixed; left: 50%; top: 56%; transform: translateX(-50%); background: rgba(27,21,48,.85); color: #fff;
+             padding: 18px 30px; border-radius: 18px; border: 3px solid #ffe066; box-shadow: 6px 6px 0 #1b1530; text-align: center; }
+    #panel h2 { margin: 0 0 6px; font-size: 26px; font-style: italic; }
     #panel p { margin: 0 0 10px; }
     #panel kbd { background: #fff2; border-radius: 4px; padding: 1px 6px; }
     #panel .keys { font-size: 13px; opacity: .85; line-height: 1.8; }
+    #podium { display: flex; justify-content: center; align-items: flex-end; gap: 14px; margin: 6px 0 12px; }
+    #podium figure { margin: 0; display: flex; flex-direction: column; align-items: center; font-weight: 700; }
+    #podium img { width: 64px; height: 64px; border-radius: 50%; border: 4px solid #fff; background: #fff; }
+    #podium .p1 { order: 2; } #podium .p1 img { width: 88px; height: 88px; border-color: #ffd23f; }
+    #podium .p2 { order: 1; } #podium .p3 { order: 3; }
   </style>
 </head>
 <body>
@@ -40,23 +63,28 @@
     <div><small>TIME</small><b id="time">0:00.00</b></div>
   </div>
   <ol class="hud" id="board"></ol>
-  <canvas id="map" width="200" height="200"></canvas>
+  <canvas id="map" width="220" height="220"></canvas>
 
-  <div class="hud" id="boost">
-    <div id="nitro">··</div>
-    <div class="bar"><div id="gauge"></div></div>
+  <div class="hud" id="me">
+    <img id="meAvatar" alt="" />
+    <div id="boost">
+      <div id="meName"></div>
+      <div id="nitro">··</div>
+      <div class="bar"><div id="gauge"></div></div>
+    </div>
   </div>
   <div class="hud" id="dash"><div id="speed">0</div><small>km/h</small></div>
-  <div class="hud" id="drift">DRIFT</div>
+  <div class="hud" id="drift">DRIFT!</div>
   <div class="hud" id="banner"></div>
 
   <div id="panel" hidden>
     <h2 id="panelTitle"></h2>
+    <div id="podium" hidden></div>
     <p id="panelBody"></p>
     <div class="keys">
-      <kbd>↑</kbd> 油门 · <kbd>↓</kbd> 刹车/倒车 · <kbd>← →</kbd> 转向<br />
-      转弯时按住 <kbd>Shift</kbd> 漂移，松开拿小加速 · 漂移攒满蓝条得一个氮气<br />
-      <kbd>Space</kbd> 放氮气 · <kbd>R</kbd> 卡住时回到赛道
+      <kbd>↑</kbd> throttle · <kbd>↓</kbd> brake / reverse · <kbd>← →</kbd> steer<br />
+      Hold <kbd>Shift</kbd> in a corner to drift, release for a mini-boost · fill the blue bar to earn a nitro<br />
+      <kbd>Space</kbd> fire nitro · <kbd>R</kbd> back to the track if stuck · yellow pads boost you
     </div>
   </div>
 

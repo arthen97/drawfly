@@ -20,6 +20,8 @@ CUTOUTS = {
     "decal-dao-motors": 512, "decal-bazzi-oil": 512, "decal-turbo-noodle": 512, "decal-nitro-fizz": 512,
     "decal-flames": 1024, "decal-checker": 1024,
     "tree-pine": 1024, "tree-broadleaf": 1024, "bush": 512,
+    "toon-pine": 1024, "toon-broadleaf": 1024, "toon-bush": 512,
+    "avatar-you": 256, "avatar-dao": 256, "avatar-bazzi": 256, "avatar-marid": 256,
 }
 TILES = {"curb": 512, "tire-tread": 512, "banner-ads-1": 1024, "banner-ads-2": 1024, "banner-start": 1024}
 

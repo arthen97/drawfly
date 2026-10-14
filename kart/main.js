@@ -3,6 +3,8 @@ import { SAMPLES, buildTrackMeshes, createTrackData } from "./track.js";
 import { Kart, TUNE, aiInput, emptyInput } from "./kart.js";
 import { loadAssets } from "./assets.js";
 import { buildKartModel } from "./kart-model.js";
+import { toonify } from "./toon.js";
+import { createPost } from "./post.js";
 
 const LAPS = 3;
 const STEP = 1 / 120;
@@ -14,26 +16,26 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.toneMappingExposure = 1.05;
+const post = createPost(renderer);
 
 const loadingTitle = document.getElementById("panelTitle");
 const loadingBody = document.getElementById("panelBody");
 document.getElementById("panel").hidden = false;
-loadingTitle.textContent = "加载贴图与模型…";
+loadingTitle.textContent = "Loading textures & models…";
 const assets = await loadAssets(renderer, (p) => (loadingBody.textContent = `${Math.round(p * 100)}%`));
 
-// The HDRI sky both lights every surface (environment) and is what you see (background).
+// The HDRI is the sky you see; toon materials ignore image-based light, so lights below do the shading.
 const scene = new THREE.Scene();
 scene.background = assets.sky.background;
-scene.environment = assets.sky.environment;
-scene.backgroundBlurriness = 0.02;
+scene.backgroundBlurriness = 0.03;
 scene.fog = new THREE.Fog(0xc9d8e4, 120, 420);
 
 const camera = new THREE.PerspectiveCamera(68, 1, 0.1, 900);
-// The "puresky" HDRI has no ground, so add the green bounce light a real field would give.
-scene.add(new THREE.HemisphereLight(0xdfeeff, 0x5d6b3c, 0.55));
-const sun = new THREE.DirectionalLight(0xfff1dc, 2.4);
+// Sky/ground bounce fills the shadow band; the sun decides where the light band ends.
+scene.add(new THREE.HemisphereLight(0xd6e8ff, 0x6b7a4a, 1.25));
+const sun = new THREE.DirectionalLight(0xfff1dc, 2.0);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 sun.shadow.bias = -0.0004;
@@ -43,14 +45,15 @@ scene.add(sun, sun.target);
 
 // ② Track: one spline turned into road, curbs, walls, tyre barriers, billboards, trees.
 const track = createTrackData();
-buildTrackMeshes(scene, track, assets);
+const trackFx = buildTrackMeshes(scene, track, assets);
+toonify(scene);
 
 // ③ Karts: the player and three AI share one class; each gets its own Kenney body and stickers.
 const roster = [
-  { name: "你", color: 0x7b61ff, skill: null, body: "oobi", number: 1, sponsor: "decal-turbo-noodle" },
-  { name: "Dao", color: 0xe0559f, skill: 0.98, body: "oodi", number: 7, sponsor: "decal-dao-motors" },
-  { name: "Bazzi", color: 0xffc83a, skill: 0.95, body: "ooli", number: 3, sponsor: "decal-bazzi-oil" },
-  { name: "Marid", color: 0x3fc1a9, skill: 0.92, body: "oopi", number: 8, sponsor: "decal-nitro-fizz" },
+  { name: "You", avatar: "avatar-you", color: 0x7b61ff, skill: null, body: "oobi", number: 1, sponsor: "decal-turbo-noodle" },
+  { name: "Dao", avatar: "avatar-dao", color: 0xe0559f, skill: 0.98, body: "oodi", number: 7, sponsor: "decal-dao-motors" },
+  { name: "Bazzi", avatar: "avatar-bazzi", color: 0xffc83a, skill: 0.95, body: "ooli", number: 3, sponsor: "decal-bazzi-oil" },
+  { name: "Marid", avatar: "avatar-marid", color: 0x3fc1a9, skill: 0.92, body: "oopi", number: 8, sponsor: "decal-nitro-fizz" },
 ];
 const karts = roster.map((r, k) => {
   const kart = new Kart({
@@ -62,6 +65,7 @@ const karts = roster.map((r, k) => {
     lane: k % 2 ? 3 : -3,
   });
   kart.skill = r.skill;
+  kart.avatar = r.avatar;
   kart.aiLane = [-2, 2, -1, 1][k];
   scene.add(kart.model.root);
   return kart;
@@ -115,6 +119,7 @@ function startRace() {
   state.results = [];
   ui.banner.textContent = "";
   ui.panel.hidden = true;
+  ui.podium.hidden = true;
 }
 
 function ranking() {
@@ -159,9 +164,14 @@ function simulate(dt) {
 function finishRace() {
   state.phase = "done";
   const place = state.results.indexOf(player) + 1;
-  ui.banner.textContent = place === 1 ? "冠军！" : `第 ${place} 名`;
-  ui.panelTitle.textContent = `完成 · ${formatTime(player.finished)}`;
-  ui.panelBody.textContent = "按 Enter 再来一局";
+  ui.banner.textContent = place === 1 ? "WINNER!" : `P${place}`;
+  ui.panelTitle.textContent = `Finished · ${formatTime(player.finished)}`;
+  ui.panelBody.textContent = "Press Enter to race again";
+  ui.podium.innerHTML = state.results
+    .slice(0, 3)
+    .map((k, n) => `<figure class="p${n + 1}"><img src="${avatarUrl(k)}" alt="" /><figcaption>${n + 1}. ${k.name}</figcaption></figure>`)
+    .join("");
+  ui.podium.hidden = false;
   ui.panel.hidden = false;
 }
 
@@ -207,7 +217,31 @@ const ui = {
   panelBody: document.getElementById("panelBody"),
   board: document.getElementById("board"),
   map: document.getElementById("map"),
+  podium: document.getElementById("podium"),
+  meAvatar: document.getElementById("meAvatar"),
+  meName: document.getElementById("meName"),
 };
+
+// Avatars: generated portraits, used in the standings, on the minimap, and on the podium.
+const avatarUrl = (k) => `./assets/tex/${k.avatar}.webp`;
+const avatarImg = new Map(karts.map((k) => {
+  const img = new Image();
+  img.src = avatarUrl(k);
+  return [k, img];
+}));
+const hex = (c) => `#${c.toString(16).padStart(6, "0")}`;
+ui.meAvatar.src = avatarUrl(player);
+ui.meAvatar.style.borderColor = hex(player.color);
+ui.meName.textContent = player.name;
+const boardRows = new Map(karts.map((k) => {
+  const li = document.createElement("li");
+  li.className = k === player ? "me" : "";
+  li.style.setProperty("--ring", hex(k.color));
+  li.innerHTML = `<span class="rank"></span><img src="${avatarUrl(k)}" alt="" /><span class="name">${k.name}</span>`;
+  ui.board.append(li);
+  return [k, li];
+}));
+let boardOrder = "";
 
 function formatTime(s) {
   const m = Math.floor(s / 60);
@@ -242,10 +276,20 @@ function drawMap() {
   c.stroke();
   for (const k of [...karts].reverse()) {
     const [x, y] = toMap(k.pos);
-    c.fillStyle = `#${k.color.toString(16).padStart(6, "0")}`;
+    const r = k === player ? 11 : 8.5;
+    c.fillStyle = hex(k.color);
     c.beginPath();
-    c.arc(x, y, k === player ? 6 : 4.5, 0, Math.PI * 2);
+    c.arc(x, y, r + 2, 0, Math.PI * 2);
     c.fill();
+    const img = avatarImg.get(k);
+    if (img.complete && img.naturalWidth) {
+      c.save();
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.clip();
+      c.drawImage(img, x - r * 1.25, y - r * 1.25, r * 2.5, r * 2.5);
+      c.restore();
+    }
   }
 }
 
@@ -260,9 +304,16 @@ function updateHud() {
   ui.nitro.textContent = "N".repeat(player.nitro) + "·".repeat(TUNE.maxNitro - player.nitro);
   ui.drift.style.opacity = player.drifting ? 1 : 0;
   ui.drift.style.color = player.charge > 1.6 ? "#ff8a1f" : player.charge > 0.7 ? "#4fc3ff" : "#fff";
-  ui.board.innerHTML = order
-    .map((k, n) => `<li class="${k === player ? "me" : ""}">${n + 1}. ${k.name}${k.finished != null ? " ✓" : ""}</li>`)
-    .join("");
+  const sig = order.map((k) => `${k.name}${k.finished != null}`).join();
+  if (sig !== boardOrder) {
+    boardOrder = sig;
+    order.forEach((k, n) => {
+      const li = boardRows.get(k);
+      li.querySelector(".rank").textContent = n + 1;
+      li.classList.toggle("done", k.finished != null);
+      ui.board.append(li);
+    });
+  }
   if (state.phase === "countdown") {
     const n = Math.ceil(state.countdown - 0.5);
     ui.banner.textContent = n > 0 ? String(n) : "GO!";
@@ -279,12 +330,14 @@ function resize() {
   const w = innerWidth;
   const h = innerHeight;
   renderer.setSize(w, h, false);
+  post.setSize();
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
 }
 addEventListener("resize", resize);
 resize();
 
+const fx = { blur: 0, lines: 0 };
 let last = performance.now();
 let acc = 0;
 function frame(now) {
@@ -298,14 +351,20 @@ function frame(now) {
   for (const k of karts) k.syncModel(dt);
   updateCamera(dt);
   updateHud();
-  renderer.render(scene, camera);
+  trackFx.update(now / 1000, dt);
+  // Speed feel: blur ramps in with speed, boosting adds full blur and light streaks.
+  const boosting = player.boost > 0 ? 1 : 0;
+  const wantBlur = Math.max(boosting, THREE.MathUtils.clamp((player.speed - 20) / 30, 0, 1) * 0.3);
+  fx.blur += (wantBlur - fx.blur) * Math.min(1, dt * 6);
+  fx.lines += (boosting - fx.lines) * Math.min(1, dt * (boosting ? 10 : 4));
+  post.render(scene, camera, { blur: fx.blur * 0.9, lines: fx.lines, time: now / 1000 });
   requestAnimationFrame(frame);
 }
 
 updateCamera(0, true);
-ui.panelTitle.textContent = "跑跑卡丁车 · Three.js";
-ui.panelBody.textContent = "按 Enter 开始";
+ui.panelTitle.textContent = "Turbo Kart · Three.js";
+ui.panelBody.textContent = "Press Enter to start";
 ui.panel.hidden = false;
 requestAnimationFrame(frame);
 
-window.kartGame = { karts, player, track, state, startRace, scene, camera, renderer, THREE, cameraOverride: null };
+window.kartGame = { karts, player, track, state, startRace, scene, camera, renderer, THREE, post, fx, cameraOverride: null };

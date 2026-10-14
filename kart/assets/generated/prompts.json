@@ -82,5 +82,47 @@
     "size": "1536x1024",
     "transparent": false,
     "prompt": "Race start finish gantry banner reading 'START · FINISH' in huge bold italic white letters on black, checkered flag blocks on both ends, yellow accent stripes, flat graphic design, fills the entire frame, no frame, no perspective"
+  },
+  "avatar-you": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Cute round-headed lavender purple alien kart racer with two small rounded ears on top of the head, big glossy black eyes, a confident grin, purple ring, anime cel-shaded character portrait, 3D rendered as 2D toon style, head and shoulders, wearing a glossy white racing helmet with the visor open and a racing suit collar, bold clean dark outlines, flat two-tone cel shadows, crisp rim light, vibrant saturated colors, centered inside a circular badge with a thick colored ring, isolated on a fully transparent background, no text, no letters"
+  },
+  "avatar-dao": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Cute round-headed pink alien kart racer with sharp determined eyes and a smirk, magenta ring, anime cel-shaded character portrait, 3D rendered as 2D toon style, head and shoulders, wearing a glossy white racing helmet with the visor open and a racing suit collar, bold clean dark outlines, flat two-tone cel shadows, crisp rim light, vibrant saturated colors, centered inside a circular badge with a thick colored ring, isolated on a fully transparent background, no text, no letters"
+  },
+  "avatar-bazzi": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Cute round-headed yellow alien kart racer with happy closed crescent eyes and a big smile, golden yellow ring, anime cel-shaded character portrait, 3D rendered as 2D toon style, head and shoulders, wearing a glossy white racing helmet with the visor open and a racing suit collar, bold clean dark outlines, flat two-tone cel shadows, crisp rim light, vibrant saturated colors, centered inside a circular badge with a thick colored ring, isolated on a fully transparent background, no text, no letters"
+  },
+  "avatar-marid": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "Cute round-headed teal mint alien kart racer with big round sparkling eyes and a shy smile, teal ring, anime cel-shaded character portrait, 3D rendered as 2D toon style, head and shoulders, wearing a glossy white racing helmet with the visor open and a racing suit collar, bold clean dark outlines, flat two-tone cel shadows, crisp rim light, vibrant saturated colors, centered inside a circular badge with a thick colored ring, isolated on a fully transparent background, no text, no letters"
+  },
+  "toon-pine": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "A single tall stylized pine tree with layered dark green foliage tiers and a straight brown trunk, anime background art style, cel-shaded with flat two-tone shading, clean dark outline, Studio Ghibli inspired, centered, whole plant visible from base to top, isolated on a fully transparent background, no ground, no shadow"
+  },
+  "toon-broadleaf": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1536",
+    "transparent": true,
+    "prompt": "A single round fluffy stylized green tree with clumped leaf masses and a short brown trunk, anime background art style, cel-shaded with flat two-tone shading, clean dark outline, Studio Ghibli inspired, centered, whole plant visible from base to top, isolated on a fully transparent background, no ground, no shadow"
+  },
+  "toon-bush": {
+    "model": "gpt-image-2.5-sunburst",
+    "size": "1024x1024",
+    "transparent": true,
+    "prompt": "A single round fluffy stylized green bush with clumped leaf masses, anime background art style, cel-shaded with flat two-tone shading, clean dark outline, Studio Ghibli inspired, centered, whole plant visible from base to top, isolated on a fully transparent background, no ground, no shadow"
   }
 }

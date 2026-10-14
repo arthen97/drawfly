@@ -33,7 +33,33 @@ TILE = (
     "fills the entire frame edge to edge, no perspective, no border, no text"
 )
 
+AVATAR = (
+    "anime cel-shaded character portrait, 3D rendered as 2D toon style, head and shoulders, wearing a glossy white "
+    "racing helmet with the visor open and a racing suit collar, bold clean dark outlines, flat two-tone cel shadows, "
+    "crisp rim light, vibrant saturated colors, centered inside a circular badge with a thick colored ring, "
+    "isolated on a fully transparent background, no text, no letters"
+)
+TOON_FOLIAGE = (
+    "anime background art style, cel-shaded with flat two-tone shading, clean dark outline, Studio Ghibli inspired, "
+    "centered, whole plant visible from base to top, isolated on a fully transparent background, no ground, no shadow"
+)
+
 JOBS = {
+    "avatar-you": dict(size="1024x1024", transparent=True, prompt=(
+        f"Cute round-headed lavender purple alien kart racer with two small rounded ears on top of the head, big glossy black eyes, "
+        f"a confident grin, purple ring, {AVATAR}")),
+    "avatar-dao": dict(size="1024x1024", transparent=True, prompt=(
+        f"Cute round-headed pink alien kart racer with sharp determined eyes and a smirk, magenta ring, {AVATAR}")),
+    "avatar-bazzi": dict(size="1024x1024", transparent=True, prompt=(
+        f"Cute round-headed yellow alien kart racer with happy closed crescent eyes and a big smile, golden yellow ring, {AVATAR}")),
+    "avatar-marid": dict(size="1024x1024", transparent=True, prompt=(
+        f"Cute round-headed teal mint alien kart racer with big round sparkling eyes and a shy smile, teal ring, {AVATAR}")),
+    "toon-pine": dict(size="1024x1536", transparent=True, prompt=(
+        f"A single tall stylized pine tree with layered dark green foliage tiers and a straight brown trunk, {TOON_FOLIAGE}")),
+    "toon-broadleaf": dict(size="1024x1536", transparent=True, prompt=(
+        f"A single round fluffy stylized green tree with clumped leaf masses and a short brown trunk, {TOON_FOLIAGE}")),
+    "toon-bush": dict(size="1024x1024", transparent=True, prompt=(
+        f"A single round fluffy stylized green bush with clumped leaf masses, {TOON_FOLIAGE}")),
     "decal-dao-motors": dict(size="1024x1024", transparent=True, prompt=(
         f"Racing sponsor sticker logo reading 'DAO MOTORS', bold chrome italic wordmark with a red stylized wing emblem, {STICKER}")),
     "decal-bazzi-oil": dict(size="1024x1024", transparent=True, prompt=(

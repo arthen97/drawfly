@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { DecalGeometry } from "../js/vendor/jsm/geometries/DecalGeometry.js";
+import { toonGradient, withRim } from "./toon.js";
 
 /** Kenney karts are ~1.4 m long; the physics kart is ~2.6 m. */
 export const KART_SCALE = 1.8;
@@ -8,28 +9,28 @@ export const KART_SCALE = 1.8;
  * The Kenney karts colour everything through one 512² palette texture, so their UVs
  * cannot carry real detail. Instead the shader reads the palette colour per pixel and
  * decides what the surface is made of: near-black grey is tyre rubber (tread texture),
- * low-saturation grey is metal (Poly Haven metal plate), anything colourful is lacquered
- * paint under a clearcoat. Detail is projected in object space (triplanar), so it sticks
- * to the part and turns with spinning wheels.
+ * low-saturation grey is metal (Poly Haven metal plate), anything colourful is paint.
+ * Detail is projected in object space (triplanar), so it sticks to the part and turns
+ * with spinning wheels. Lighting is toon: flat bands, a hard anime highlight, rim light.
  */
-function surfaceMaterial(assets, { clearcoat }) {
+const HIGHLIGHT_GLSL = `
+#if NUM_DIR_LIGHTS > 0
+vec3 toonHalf = normalize(directionalLights[0].direction + toonView);
+float toonSpec = smoothstep(0.9, 0.93, max(dot(normal, toonHalf), 0.0));
+totalEmissiveRadiance += directionalLights[0].color * toonSpec * (paintK * 0.3 + metalK * 0.55);
+#endif
+`;
+
+function surfaceMaterial(assets, { highlight }) {
   const tread = assets.generated["tire-tread"];
   const plate = assets.metal.map;
-  const plateRough = assets.metal.roughnessMap;
-  const mat = new THREE.MeshPhysicalMaterial({
+  const mat = new THREE.MeshToonMaterial({
     map: assets.karts.oobi.getObjectByProperty("isMesh", true).material.map,
-    roughness: 0.32,
-    metalness: 0,
-    clearcoat,
-    clearcoatRoughness: 0.06,
+    gradientMap: toonGradient(),
     side: THREE.DoubleSide,
   });
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, {
-      tTread: { value: tread },
-      tPlate: { value: plate },
-      tPlateRough: { value: plateRough },
-    });
+    Object.assign(shader.uniforms, { tTread: { value: tread }, tPlate: { value: plate } });
     shader.vertexShader = shader.vertexShader
       .replace("#include <common>", "#include <common>\nvarying vec3 vObjPos;\nvarying vec3 vObjNrm;")
       .replace("#include <begin_vertex>", "#include <begin_vertex>\nvObjPos = position;\nvObjNrm = normal;");
@@ -41,7 +42,6 @@ varying vec3 vObjPos;
 varying vec3 vObjNrm;
 uniform sampler2D tTread;
 uniform sampler2D tPlate;
-uniform sampler2D tPlateRough;
 vec4 triplanar(sampler2D t, vec3 p, vec3 w) {
   return texture2D(t, p.zy) * w.x + texture2D(t, p.xz) * w.y + texture2D(t, p.xy) * w.z;
 }`
@@ -62,30 +62,12 @@ vec3 tw = pow(abs(normalize(vObjNrm)), vec3(4.0));
 tw /= dot(tw, vec3(1.0));
 vec3 treadRGB = triplanar(tTread, vObjPos * 3.5, tw).rgb;
 vec3 plateRGB = triplanar(tPlate, vObjPos * 2.5, tw).rgb;
-float plateR = triplanar(tPlateRough, vObjPos * 2.5, tw).r;
-diffuseColor.rgb = mix(diffuseColor.rgb, treadRGB * 1.4, rubberK);
-diffuseColor.rgb *= mix(vec3(1.0), 0.45 + plateRGB * 1.6, metalK);`
-      )
-      .replace(
-        "#include <roughnessmap_fragment>",
-        `#include <roughnessmap_fragment>
-roughnessFactor = roughnessFactor * paintK + 0.88 * rubberK + (0.22 + 0.5 * plateR) * metalK;`
-      )
-      .replace(
-        "#include <metalnessmap_fragment>",
-        `#include <metalnessmap_fragment>
-metalnessFactor = mix(metalnessFactor, 0.9, metalK);`
-      )
-      .replace(
-        "#include <lights_physical_fragment>",
-        `#include <lights_physical_fragment>
-#ifdef USE_CLEARCOAT
-material.clearcoat *= paintK;
-#endif`
+diffuseColor.rgb = mix(diffuseColor.rgb, treadRGB * 1.6, rubberK);
+diffuseColor.rgb *= mix(vec3(1.0), 0.55 + plateRGB * 1.4, metalK);`
       );
   };
-  mat.customProgramCacheKey = () => `kart-surface-${clearcoat > 0}`;
-  return mat;
+  mat.customProgramCacheKey = () => `kart-toon-${highlight}`;
+  return withRim(mat, 0.5, highlight ? HIGHLIGHT_GLSL : "");
 }
 
 function decalMaterial(map, flip = false) {
@@ -96,17 +78,18 @@ function decalMaterial(map, flip = false) {
     tex.offset.x = 1;
     tex.needsUpdate = true;
   }
-  return new THREE.MeshPhysicalMaterial({
-    map: tex,
-    transparent: true,
-    alphaTest: 0.04,
-    depthWrite: false,
-    polygonOffset: true,
-    polygonOffsetFactor: -4,
-    roughness: 0.3,
-    clearcoat: 1,
-    clearcoatRoughness: 0.05,
-  });
+  return withRim(
+    new THREE.MeshToonMaterial({
+      map: tex,
+      gradientMap: toonGradient(),
+      transparent: true,
+      alphaTest: 0.04,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -4,
+    }),
+    0.4
+  );
 }
 
 function numberTexture(number, color) {
@@ -181,8 +164,8 @@ const shared = new WeakMap();
 function materialsFor(assets) {
   if (!shared.has(assets)) {
     shared.set(assets, {
-      body: surfaceMaterial(assets, { clearcoat: 1 }),
-      driver: surfaceMaterial(assets, { clearcoat: 0 }),
+      body: surfaceMaterial(assets, { highlight: true }),
+      driver: surfaceMaterial(assets, { highlight: false }),
     });
   }
   return shared.get(assets);
