@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { BOOST_PADS, ROAD_HALF, SAMPLES, project, wrap } from "./track.js";
+import { ROAD_HALF, SAMPLES, heightAt, project, wrap } from "./track.js";
 import { KART_SCALE } from "./kart-model.js";
 
 export const TUNE = {
@@ -17,6 +17,8 @@ export const TUNE = {
   gaugePerSecond: 0.22,
   nitroTime: 2.2,
   maxNitro: 2,
+  gravity: 30,
+  airSteer: 0.35,
 };
 
 const KART_RADIUS = 1.0;
@@ -41,6 +43,10 @@ export class Kart {
     const i = wrap(index);
     const t = this.track;
     this.pos = t.P[i].clone().addScaledVector(t.R[i], lane);
+    this.vy = 0;
+    this.air = false;
+    this.airTime = 0;
+    this.landed = 0;
     this.yaw = Math.atan2(t.T[i].x, t.T[i].z);
     this.vel = new THREE.Vector3();
     this.idx = i;
@@ -57,6 +63,7 @@ export class Kart {
     this.finished = null;
     this.wheelSpin = 0;
     this.steerShown = 0;
+    this.released = 0;
   }
 
   get speed() {
@@ -91,14 +98,14 @@ export class Kart {
 
     const steer = this.drifting ? this.driftDir * 0.6 + input.steer * 0.4 : input.steer;
     this.steerShown = steer;
-    const grip = Math.min(1, Math.abs(vf) / 8) * Math.sign(vf || 1);
+    const grip = Math.min(1, Math.abs(vf) / 8) * Math.sign(vf || 1) * (this.air ? TUNE.airSteer : 1);
     this.yaw -= steer * TUNE.turn * (this.drifting ? TUNE.driftTurn : 1) * grip * dt;
 
     this.forward(f);
     this.right(r);
 
     const moving = this.vel.length();
-    if (moving > 0.01) {
+    if (moving > 0.01 && !this.air) {
       const reversing = this.vel.dot(f) < 0 && !this.drifting;
       const aim = reversing ? this.yaw + Math.PI : this.yaw;
       const now = Math.atan2(this.vel.x, this.vel.z);
@@ -114,9 +121,10 @@ export class Kart {
 
     vf = this.vel.dot(f);
     let dv = 0;
-    const push = input.throttle * TUNE.accel + (this.boost > 0 ? 40 : 0);
+    const push = (this.air ? 0 : input.throttle * TUNE.accel) + (this.boost > 0 ? 40 : 0);
     if (this.speed < top) dv += push * dt;
     if (input.brake > 0) dv -= input.brake * TUNE.brake * dt;
+    if (!this.air) dv -= TUNE.gravity * 0.3 * this.track.slope[this.idx] * this.track.T[this.idx].dot(f) * dt;
     if (input.throttle === 0 && input.brake === 0) dv -= Math.sign(vf) * Math.min(Math.abs(vf), TUNE.coast * dt);
     if (vf + dv < -8) dv = -8 - vf;
     this.vel.addScaledVector(f, dv);
@@ -146,9 +154,50 @@ export class Kart {
 
     this.pos.addScaledVector(this.vel, dt);
     this.collideTrack();
+    this.followGround(dt);
+  }
+
+  /**
+   * Vertical motion. On the ground the kart rides the road; when the road drops away faster
+   * than gravity could pull the kart down (a crest or a kicker lip) it takes off and flies.
+   */
+  followGround(dt) {
+    const ground = heightAt(this.track, this.idx, this.along);
+    this.landed = Math.max(0, this.landed - dt);
+    if (this.air) {
+      this.vy -= TUNE.gravity * dt;
+      this.pos.y += this.vy * dt;
+      this.airTime += dt;
+      if (this.pos.y <= ground) {
+        if (this.vy < -5) this.landed = 0.35;
+        this.pos.y = ground;
+        this.vy = 0;
+        this.air = false;
+      }
+      return;
+    }
+    // Ballistic height next step vs the road: leave the ground only when the road falls away clearly.
+    const fall = this.pos.y + this.vy * dt - TUNE.gravity * dt * dt;
+    if (ground < fall - 0.04 && this.speed > 8) {
+      this.air = true;
+      this.airTime = 0;
+      const lip = this.track.kickers.some(({ to }) => Math.abs(wrap(this.idx - to + 2) - 2) <= 2);
+      if (lip) this.vy = Math.max(this.vy, 3 + this.speed * 0.22);
+      this.vy -= TUNE.gravity * dt;
+      this.pos.y += this.vy * dt;
+    } else {
+      this.vy = THREE.MathUtils.lerp(this.vy, (ground - this.pos.y) / dt, 0.5);
+      this.pos.y = ground;
+    }
+  }
+
+  /** Drift charge stage: 0 none, 1 blue (mini boost), 2 orange (full boost). */
+  get stage() {
+    return !this.drifting ? 0 : this.charge > 1.6 ? 2 : this.charge > 0.7 ? 1 : 0;
   }
 
   endDrift() {
+    this.released = this.stage;
     if (this.charge > 1.6) this.boost = Math.max(this.boost, 1.0);
     else if (this.charge > 0.7) this.boost = Math.max(this.boost, 0.5);
     this.drifting = false;
@@ -157,7 +206,8 @@ export class Kart {
 
   collideTrack() {
     const t = this.track;
-    const { i, lat } = project(t, this.pos, this.idx);
+    const { i, lat, along } = project(t, this.pos, this.idx);
+    this.along = along;
     let delta = i - this.idx;
     if (delta > SAMPLES / 2) delta -= SAMPLES;
     if (delta < -SAMPLES / 2) delta += SAMPLES;
@@ -186,7 +236,8 @@ export class Kart {
       this.lat = limit * side;
     }
 
-    for (const pad of BOOST_PADS) {
+    if (this.air) return;
+    for (const pad of t.pads) {
       let d = Math.abs(i - pad.i);
       d = Math.min(d, SAMPLES - d);
       if (d < 3 && Math.abs(lat - pad.lat) < 1.8) this.boost = Math.max(this.boost, 0.9);
@@ -216,10 +267,17 @@ export class Kart {
     const m = this.model;
     m.root.position.copy(this.pos);
     const slide = this.drifting ? this.driftDir * 0.15 : 0;
+    m.root.rotation.order = "YXZ";
     m.root.rotation.y = this.yaw + slide;
+    const along = this.track.T[this.idx].dot(this.forward());
+    const pitch = this.air
+      ? -Math.atan2(this.vy, Math.max(4, this.speed)) * 0.7
+      : -Math.atan(this.track.slope[this.idx] * along);
+    m.root.rotation.x = THREE.MathUtils.lerp(m.root.rotation.x, pitch, this.air ? 0.08 : 0.3);
     const vl = this.vel.dot(this.right());
     m.chassis.rotation.z = THREE.MathUtils.lerp(m.chassis.rotation.z, -vl * 0.02, 0.2);
-    m.chassis.position.y = this.bumped > 0 ? Math.sin(this.bumped * 40) * 0.08 : 0;
+    m.chassis.position.y = (this.bumped > 0 ? Math.sin(this.bumped * 40) * 0.08 : 0)
+      - (this.landed > 0 ? Math.sin((this.landed / 0.35) * Math.PI) * 0.18 : 0);
 
     this.wheelSpin += (this.vel.dot(this.forward()) * dt) / WHEEL_RADIUS;
     const lock = this.drifting ? this.driftDir * 0.25 : -this.steerShown * 0.45;
@@ -234,8 +292,7 @@ export class Kart {
       s.scale.setScalar(0.6 + Math.random() * 0.8);
     }
     m.sparkMat.color.set(this.charge > 1.6 ? 0xff8a1f : 0x4fc3ff);
-    m.flame.visible = this.boost > 0;
-    m.flame.scale.set(1, 0.7 + Math.random() * 0.6, 1);
+    m.flame.visible = false;
   }
 }
 

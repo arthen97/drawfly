@@ -95,6 +95,12 @@
     "h": 256,
     "alpha": true
   },
+  "logo": {
+    "file": "logo.webp",
+    "w": 1024,
+    "h": 600,
+    "alpha": true
+  },
   "curb": {
     "file": "curb.webp",
     "w": 512,
@@ -123,6 +129,12 @@
     "file": "banner-start.webp",
     "w": 1024,
     "h": 683,
+    "alpha": false
+  },
+  "keyart": {
+    "file": "keyart.webp",
+    "w": 1536,
+    "h": 1024,
     "alpha": false
   }
 }

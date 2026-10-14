@@ -22,8 +22,9 @@ CUTOUTS = {
     "tree-pine": 1024, "tree-broadleaf": 1024, "bush": 512,
     "toon-pine": 1024, "toon-broadleaf": 1024, "toon-bush": 512,
     "avatar-you": 256, "avatar-dao": 256, "avatar-bazzi": 256, "avatar-marid": 256,
+    "logo": 1024,
 }
-TILES = {"curb": 512, "tire-tread": 512, "banner-ads-1": 1024, "banner-ads-2": 1024, "banner-start": 1024}
+TILES = {"curb": 512, "tire-tread": 512, "banner-ads-1": 1024, "banner-ads-2": 1024, "banner-start": 1024, "keyart": 1920}
 
 
 def fit(img: Image.Image, longest: int) -> Image.Image:

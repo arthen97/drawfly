@@ -1,0 +1,17 @@
+{
+  "music-title": {
+    "model": "eleven-music-v1",
+    "duration": 60,
+    "prompt": "Title screen theme for a colourful cartoon kart racing game: heroic catchy main melody, rising synth brass, driving four-on-the-floor beat at 150 BPM, festive and commercial, loops cleanly back to the start, instrumental only, no vocals, crisp modern mix, punchy drums, bright synth leads, anime racing game soundtrack"
+  },
+  "music-race": {
+    "model": "eleven-music-v1",
+    "duration": 120,
+    "prompt": "High-energy eurobeat / J-pop style race music for a cartoon kart racer: fast 165 BPM, slap bass, arpeggiated synths, electric guitar stabs, constant momentum without breakdowns, loops seamlessly, instrumental only, no vocals, crisp modern mix, punchy drums, bright synth leads, anime racing game soundtrack"
+  },
+  "music-victory": {
+    "model": "eleven-music-v1",
+    "duration": 15,
+    "prompt": "Short triumphant victory fanfare after winning a kart race: brass and synth flourish, cymbal swell, joyful resolving final chord, instrumental only, no vocals, crisp modern mix, punchy drums, bright synth leads, anime racing game soundtrack"
+  }
+}

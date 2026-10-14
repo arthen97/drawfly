@@ -6,18 +6,46 @@ export const ROAD_HALF = 7.5;
 export const CURB = 1.2;
 export const WALL = 11.5;
 
+/** Control points [x, z, height]: the whole circuit is one closed spline through them. */
 const CONTROL = [
-  [0, 0], [70, -6], [128, -40], [150, -100], [122, -160], [60, -178],
-  [20, -150], [-10, -110], [-58, -118], [-112, -150], [-160, -112],
-  [-168, -40], [-130, 18], [-70, 40],
+  [0, 0, 0], [70, 0, 0], [130, -8, 0], [175, -40, 2], [188, -95, 5], [168, -140, 7.5], [128, -160, 8.5],
+  [88, -148, 5], [50, -112, 0.5], [16, -122, 0], [-20, -108, 0], [-55, -128, 0], [-95, -158, 1],
+  [-145, -152, 3], [-185, -118, 4], [-192, -72, 5], [-168, -40, 6], [-128, -58, 6.5], [-100, -90, 6],
+  [-66, -80, 5.5], [-72, -44, 5], [-110, -22, 4], [-140, 10, 3], [-116, 44, 2], [-72, 52, 0.5], [-32, 22, 0],
 ];
+
+/** Kicker ramps: rise over `up` samples to `lift` metres, then a sheer lip so karts launch. */
+const KICKERS = [{ at: [68, 0], up: 10, lift: 1.4 }, { at: [-40, 29], up: 10, lift: 1.4 }];
+/** Boost pads, placed by nearest point on the track. */
+const PAD_SPOTS = [
+  { at: [45, 0], lat: 0 }, { at: [183, -70], lat: -3 }, { at: [-30, -112], lat: 2.5 },
+  { at: [-88, -30], lat: 0 }, { at: [-55, 45], lat: -2.5 },
+];
+/** Embankments fall away from raised walls at 1 : EMBANK. */
+export const EMBANK = 1.8;
 
 const UP = new THREE.Vector3(0, 1, 0);
 
-/** Centerline samples: P = point, T = travel direction, R = driver's right. */
+function nearestSample(P, [x, z]) {
+  let best = 0;
+  let bestD = Infinity;
+  P.forEach((p, i) => {
+    const d = (p.x - x) ** 2 + (p.z - z) ** 2;
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  });
+  return best;
+}
+
+/**
+ * Centerline samples: P = point (with height), T = flat travel direction, R = driver's right,
+ * slope[i] = rise per metre going forward from sample i.
+ */
 export function createTrackData() {
   const curve = new THREE.CatmullRomCurve3(
-    CONTROL.map(([x, z]) => new THREE.Vector3(x, 0, z)),
+    CONTROL.map(([x, z, y]) => new THREE.Vector3(x, y, z)),
     true,
     "centripetal"
   );
@@ -27,13 +55,25 @@ export function createTrackData() {
   for (let i = 0; i < SAMPLES; i++) {
     const u = i / SAMPLES;
     const p = curve.getPointAt(u);
+    // The spline overshoots a little below flat ground; road under the field would vanish.
+    p.y = Math.max(0, p.y);
     const t = curve.getTangentAt(u).setY(0).normalize();
     P.push(p);
     T.push(t);
     R.push(new THREE.Vector3().crossVectors(t, UP).normalize());
   }
-  const segment = P[0].distanceTo(P[1]);
-  const track = { curve, P, T, R, segment, length: segment * SAMPLES };
+  const kickers = KICKERS.map(({ at, up, lift }) => {
+    const top = nearestSample(P, at);
+    for (let k = 0; k <= up; k++) P[wrap(top - up + k)].y += (lift * k) / up;
+    return { from: wrap(top - up), to: top };
+  });
+  let flatLen = 0;
+  for (let i = 0; i < SAMPLES; i++) flatLen += Math.hypot(P[wrap(i + 1)].x - P[i].x, P[wrap(i + 1)].z - P[i].z);
+  const segment = flatLen / SAMPLES;
+  const gap = P.map((p, i) => Math.hypot(P[wrap(i + 1)].x - p.x, P[wrap(i + 1)].z - p.z));
+  const slope = P.map((p, i) => (P[wrap(i + 1)].y - p.y) / segment);
+  const track = { curve, P, T, R, slope, gap, segment, length: flatLen, kickers };
+  track.pads = PAD_SPOTS.map(({ at, lat }) => ({ i: nearestSample(P, at), lat }));
 
   // Hard corners get a tyre barrier in front of the outside wall, so the solid edge moves in there.
   track.wallRight = new Float32Array(SAMPLES).fill(WALL);
@@ -76,20 +116,31 @@ export function project(track, pos, hint = null) {
   }
   const p = track.P[best];
   const r = track.R[best];
+  const t = track.T[best];
   const lat = (pos.x - p.x) * r.x + (pos.z - p.z) * r.z;
-  return { i: best, lat };
+  const along = (pos.x - p.x) * t.x + (pos.z - p.z) * t.z;
+  return { i: best, lat, along };
+}
+
+/** Road height under a point `along` metres ahead of sample i (the road is level side to side). */
+export function heightAt(track, i, along) {
+  const j = along >= 0 ? wrap(i + 1) : wrap(i - 1);
+  const f = Math.min(1, Math.abs(along) / track.gap[along >= 0 ? i : j]);
+  return THREE.MathUtils.lerp(track.P[i].y, track.P[j].y, f);
 }
 
 /**
- * Quads between neighbouring samples; corners are (sideOffset, height).
+ * Quads between neighbouring samples; corners are (sideOffset, height above the road), or a
+ * function p => [sideOffset, absoluteY] for surfaces that reach down to the ground.
  * UVs: u runs a→b over [0, uSpan], v runs along the track at one unit per vTile metres.
  */
 function ribbon(track, { a, b, step = 1, uSpan = 1, vTile = 4, keep = () => true }) {
   const pos = [];
   const uv = [];
-  const put = (i, [off, y], u) => {
+  const put = (i, corner, u) => {
     const p = track.P[wrap(i)];
     const r = track.R[wrap(i)];
+    const [off, y] = typeof corner === "function" ? corner(p) : [corner[0], p.y + corner[1]];
     pos.push(p.x + r.x * off, y, p.z + r.z * off);
     uv.push(u * uSpan, (i * track.segment) / vTile);
   };
@@ -130,9 +181,12 @@ function crossedPlanes(w, h) {
   return geo;
 }
 
+/** True when p (on the ground) clears the road, its walls and any embankment by `clearance`. */
 function farFromTrack(track, p, clearance) {
   for (let k = 0; k < SAMPLES; k += 3) {
-    if (track.P[k].distanceToSquared(p) < clearance ** 2) return false;
+    const q = track.P[k];
+    const reach = clearance + Math.max(0, q.y) * EMBANK;
+    if ((q.x - p.x) ** 2 + (q.z - p.z) ** 2 < reach ** 2) return false;
   }
   return true;
 }
@@ -144,12 +198,6 @@ function seeded(seed) {
     return s / 2147483647;
   };
 }
-
-export const BOOST_PADS = [
-  { i: 70, lat: 0 },
-  { i: 330, lat: -3 },
-  { i: 610, lat: 3 },
-];
 
 function canvasTexture(w, h, draw, { repeat = false } = {}) {
   const c = document.createElement("canvas");
@@ -222,8 +270,7 @@ function buildBoostPads(scene, track) {
   const haloMat = new THREE.MeshBasicMaterial({ map: halo, ...additive, opacity: 0.7 });
   const beamMat = new THREE.MeshBasicMaterial({ map: beams, alphaMap: fade, side: THREE.DoubleSide, ...additive });
 
-  for (const pad of BOOST_PADS) {
-    const { i, lat } = pad;
+  for (const { i, lat } of track.pads) {
     const group = new THREE.Group();
     const panel = new THREE.Mesh(new THREE.PlaneGeometry(3, 5), panelMat);
     panel.rotation.x = -Math.PI / 2;
@@ -240,8 +287,8 @@ function buildBoostPads(scene, track) {
     }
     const p = track.P[i];
     const r = track.R[i];
-    group.position.set(p.x + r.x * lat, 0, p.z + r.z * lat);
-    group.rotation.y = Math.atan2(track.T[i].x, track.T[i].z);
+    group.position.set(p.x + r.x * lat, p.y, p.z + r.z * lat);
+    group.rotation.set(-Math.atan(track.slope[i]), Math.atan2(track.T[i].x, track.T[i].z), 0, "YXZ");
     panel.rotation.z = Math.PI;
     scene.add(group);
   }
@@ -286,6 +333,16 @@ export function buildTrackMeshes(scene, track, assets) {
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
+  const metreTile = (t) => {
+    const c = t.clone();
+    c.repeat.set(1, 1);
+    c.needsUpdate = true;
+    return c;
+  };
+  const verge = new THREE.MeshStandardMaterial({
+    map: metreTile(grass.map), normalMap: metreTile(grass.normalMap), color: 0xb4d48c,
+    side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1,
+  });
 
   // Road: asphalt, one texture tile per 5 m in both directions.
   const road = new THREE.Mesh(
@@ -331,6 +388,50 @@ export function buildTrackMeshes(scene, track, assets) {
     wall.castShadow = true;
     wall.receiveShadow = true;
     scene.add(wall);
+
+    // Grass shoulder between kerb and wall, and an embankment from the wall down to the field.
+    const shoulder = new THREE.Mesh(
+      ribbon(track, { a: [Math.min(outer, side * WALL), 0.015], b: [Math.max(outer, side * WALL), 0.015], vTile: 12 }),
+      verge
+    );
+    shoulder.receiveShadow = true;
+    scene.add(shoulder);
+    const raised = (i) => track.P[wrap(i)].y > 0.08 || track.P[wrap(i + 1)].y > 0.08;
+    const bank = new THREE.Mesh(
+      ribbon(track, {
+        a: (p) => [side * WALL, p.y],
+        b: (p) => [side * (WALL + Math.max(0, p.y) * EMBANK + 0.4), -0.05],
+        uSpan: 1.5, vTile: 12, keep: raised,
+      }),
+      verge
+    );
+    bank.receiveShadow = true;
+    scene.add(bank);
+  }
+
+  // Kickers: hazard-striped launch ramps.
+  const hazard = canvasTexture(128, 128, (g, w, h) => {
+    g.fillStyle = "#ffcc00";
+    g.fillRect(0, 0, w, h);
+    g.fillStyle = "#1b1530";
+    for (let k = -2; k < 4; k++) {
+      g.beginPath();
+      g.moveTo(k * 64, 0);
+      g.lineTo(k * 64 + 32, 0);
+      g.lineTo(k * 64 + 32 + h, h);
+      g.lineTo(k * 64 + h, h);
+      g.fill();
+    }
+  }, { repeat: true });
+  for (const { from, to } of track.kickers) {
+    const inRamp = (i) => {
+      const d = wrap(i - from);
+      return d < wrap(to - from);
+    };
+    scene.add(new THREE.Mesh(
+      ribbon(track, { a: [-ROAD_HALF, 0.03], b: [ROAD_HALF, 0.03], uSpan: 4, vTile: 3.75, keep: inRamp }),
+      new THREE.MeshStandardMaterial({ map: hazard, roughness: 0.6, polygonOffset: true, polygonOffsetFactor: -2 })
+    ));
   }
 
   // Start line and boost pads.
@@ -398,7 +499,9 @@ export function buildTrackMeshes(scene, track, assets) {
     board.add(face, back);
     for (const x of [-w / 3, w / 3]) {
       const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 1.7, 0.22), steel);
-      leg.position.set(x, 0.85, -0.05);
+      const drop = p.y + 0.3;
+      leg.scale.y = (1.7 + drop) / 1.7;
+      leg.position.set(x, (1.7 - drop) / 2, -0.05);
       leg.castShadow = true;
       board.add(leg);
     }
@@ -419,7 +522,7 @@ export function buildTrackMeshes(scene, track, assets) {
   stacks.forEach((p, k) => {
     for (let h = 0; h < HIGH; h++) {
       q.setFromEuler(new THREE.Euler(Math.PI / 2, 0, k * 1.7 + h * 2.3));
-      m.compose(new THREE.Vector3(p.x, thick / 2 + h * thick, p.z), q, s);
+      m.compose(new THREE.Vector3(p.x, p.y + thick / 2 + h * thick, p.z), q, s);
       tyres.setMatrixAt(k * HIGH + h, m);
     }
   });
@@ -441,7 +544,7 @@ export function buildTrackMeshes(scene, track, assets) {
       const i = Math.floor(rand() * SAMPLES);
       const side = rand() < 0.5 ? -1 : 1;
       const off = side * (kind.near + rand() * kind.far);
-      const p = track.P[i].clone().addScaledVector(track.R[i], off);
+      const p = track.P[i].clone().addScaledVector(track.R[i], off).setY(0);
       if (farFromTrack(track, p, kind.near - 1)) spots.push({ p, s: 0.75 + rand() * 0.5, yaw: rand() * Math.PI });
     }
     const w = kind.h * (kind.tex.userData.aspect || 1);

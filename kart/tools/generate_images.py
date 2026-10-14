@@ -45,6 +45,15 @@ TOON_FOLIAGE = (
 )
 
 JOBS = {
+    "logo": dict(size="1536x1024", transparent=True, prompt=(
+        "Commercial video game logo reading 'TURBO KART' in huge bold italic chrome-and-candy-red 3D letters with a thick "
+        "dark outline, a checkered flag swoosh and orange speed flames behind the words, small subtitle ribbon reading "
+        "'GRAND PRIX', glossy highlights, anime racing game style, centered, isolated on a fully transparent background")),
+    "keyart": dict(size="1536x1024", transparent=False, prompt=(
+        "Key art for a cel-shaded anime kart racing game: four cute round-headed alien racers in white helmets (purple, "
+        "pink, yellow, teal) drifting side by side out of a banked corner toward the viewer, sparks and blue drift trails, "
+        "speed lines, tyre barriers, a sunny sky with big clouds, dynamic low camera angle, vibrant commercial poster "
+        "illustration, 3D rendered as 2D toon style, leave the upper third fairly open sky, no text, no logo")),
     "avatar-you": dict(size="1024x1024", transparent=True, prompt=(
         f"Cute round-headed lavender purple alien kart racer with two small rounded ears on top of the head, big glossy black eyes, "
         f"a confident grin, purple ring, {AVATAR}")),

@@ -34,7 +34,9 @@ export async function loadAssets(renderer, onProgress = () => {}) {
 
   const manifest = await fetch(at("tex/manifest.json")).then((r) => r.json());
   const generated = {};
-  const genJobs = Object.entries(manifest).map(async ([name, info]) => {
+  // Logo and key art are only shown by the DOM title screens.
+  const UI_ONLY = new Set(["logo", "keyart"]);
+  const genJobs = Object.entries(manifest).filter(([name]) => !UI_ONLY.has(name)).map(async ([name, info]) => {
     const t = await tex(`tex/${info.file}`, { srgb: true, repeat: !info.alpha });
     t.userData.aspect = info.w / info.h;
     generated[name] = t;
