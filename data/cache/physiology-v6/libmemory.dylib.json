@@ -1,0 +1,11 @@
+{
+  "model": "stonkfly-dual-compartment-v1",
+  "source_sha256": "e2d4d584f4633613277bb1bf6ea7ba20855c01a332ae2e9344ed7782604c8509",
+  "binary_sha256": "b6bbcc3916c68c936af05b9bdc158081b07cdac7f1e69cb8cf2918b45dbdc70c",
+  "flags": [
+    "-O3",
+    "-std=c++17",
+    "-shared",
+    "-fPIC"
+  ]
+}
