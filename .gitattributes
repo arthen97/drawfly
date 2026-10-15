@@ -1,2 +1,0 @@
-data/edges.feather filter=lfs diff=lfs merge=lfs -text
-data/graph.npz filter=lfs diff=lfs merge=lfs -text

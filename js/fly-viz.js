@@ -2,7 +2,6 @@ import * as THREE from "./vendor/three.module.js";
 import { OrbitControls } from "./vendor/OrbitControls.js";
 import { PaperCanvas } from "./paper-canvas.js";
 import { buildDrosophila } from "./drosophila.js";
-import { loadMaleCnsBrain, updateMaleCnsBrain } from "./malecns-brain.js";
 import { SceneControl, asBool, asNumber, asVec3, objectBinding, parseColor } from "./scene-control.js";
 
 /** Realistic atelier: desk, lamp, paper texture, fly gripping graphite pencil, orbit camera. */
@@ -16,7 +15,6 @@ export class FlyViz {
     this.brainFocus = false;
     this._inkLen = 0;
     this.neural = null;
-    this.malecnsBrain = null;
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -60,7 +58,6 @@ export class FlyViz {
     this.scene.add(this.neurons.group);
     this._registerBrain(this.neurons.group);
     this._registerCamera();
-    this._loadRealBrain();
 
     this.targetGroup = new THREE.Group();
     this.targetGroup.visible = false; // ghost lives on paper texture
@@ -73,34 +70,6 @@ export class FlyViz {
       this.render();
     });
     this.resize();
-  }
-
-  async _loadRealBrain() {
-    try {
-      const brain = await loadMaleCnsBrain(THREE, { mat: (c, o) => this._mat(c, o) });
-      if (this.neurons?.group) this.scene.remove(this.neurons.group);
-      this.malecnsBrain = brain;
-      this.neurons = {
-        group: brain.group,
-        points: brain.points,
-        colors: brain.colors,
-        geo: brain.geo,
-        roles: brain.roles,
-        base: brain.phases,
-        sides: brain.roles,
-        shellL: null,
-        shellR: null,
-        orbL: brain.orbL,
-        orbR: brain.orbR,
-        links: null,
-        real: true,
-      };
-      this.scene.add(brain.group);
-      this._registerBrain(brain.group);
-      console.info(`[drawfly] MaleCNS soma cloud loaded · ${brain.count} points`);
-    } catch (err) {
-      console.warn("MaleCNS brain cloud failed, keeping fallback", err);
-    }
   }
 
   watch(id, object, extra = {}) {
@@ -680,14 +649,7 @@ export class FlyViz {
       0.1 +
       Math.min(1, ((n.reward_spikes || 0) + (n.aversive_spikes || 0)) / 80) * 0.9;
 
-    if (this.malecnsBrain) {
-      updateMaleCnsBrain(this.malecnsBrain, n, t, energy);
-      this.neurons.group.visible = true;
-      if (this.brainFocus && this.stage.simCan("brain", "rotation")) {
-        this.neurons.group.rotation.y = t * 0.08;
-      }
-    } else {
-      const cols = this.neurons.colors;
+    const cols = this.neurons.colors;
       const pulse = 0.55 + 0.45 * Math.sin(t * 14);
       for (let i = 0; i < this.neurons.sides.length; i++) {
         const role = this.neurons.roles?.[i] ?? 0;
@@ -719,9 +681,8 @@ export class FlyViz {
         this.neurons.orbL.material.emissiveIntensity = 0.6 + leftAct * 2.2;
         this.neurons.orbR.material.emissiveIntensity = 0.6 + rightAct * 2.2;
       }
-      if (this.neurons.links) {
-        this.neurons.links.material.opacity = 0.18 + kcAct * 0.45 + energy * 0.2;
-      }
+    if (this.neurons.links) {
+      this.neurons.links.material.opacity = 0.18 + kcAct * 0.45 + energy * 0.2;
     }
 
     if (this.stage.simCan("rim", "intensity")) {
